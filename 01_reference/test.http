@@ -1,0 +1,10 @@
+### Send POST request with json body
+POST http://localhost:60000/users
+Authorization: Basic user password
+Content-Type: application/json
+
+{
+  "email": "example@example.com",
+  "name": "example",
+  "pwd": "1234"
+}
