@@ -12,6 +12,12 @@ spring:
                 preLogger: true
                 postLogger: true
           routes:
+            - id: user-service
+              uri: lb://USER-SERVICE
+              predicates:
+                - Path=/user-service/**
+#              filters:
+#                - RewritePath=/user-service/(?<segment>.*), /$\{segment}
             - id: first-service
 #              uri: http://localhost:8081/
               uri: lb://MY-FIRST-SERVICE
@@ -19,11 +25,7 @@ spring:
                 - Path=/first-service/**
               filters:
                 - CustomFilter
-#                - AddRequestHeader=f-request, 1st-request-header-by-yaml
-#                - AddResponseHeader=f-response, 1st-response-header-by-yaml
-
             - id: second-service
-#              uri: http://localhost:8082/
               uri: lb://MY-SECOND-SERVICE
               predicates:
                 - Path=/second-service/**
@@ -34,9 +36,6 @@ spring:
                     baseMessage: Hi, There
                     preLogger: true
                     postLogger: true
-#                - AddRequestHeader=s-request, 2nd-request-header-by-yaml
-#                - AddResponseHeader=s-response, 2nd-response-header-by-yaml
-
 eureka:
   client:
     register-with-eureka: true

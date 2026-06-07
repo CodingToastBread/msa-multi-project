@@ -1,5 +1,5 @@
 ### Send POST request with json body
-POST http://localhost:60000/users
+POST http://localhost:8000/user-service/users
 Authorization: Basic user password
 Content-Type: application/json
 
@@ -8,3 +8,15 @@ Content-Type: application/json
   "name": "example",
   "pwd": "1234"
 }
+
+###
+GET http://localhost:8000/user-service/welcome
+Authorization: Basic user password
+
+###
+GET http://localhost:8000/user-service/users
+Authorization: Basic user password
+
+###
+GET http://localhost:8000/user-service/users/dcc33e1b-a200-493e-b1a8-f92dfc4ad9fa
+Authorization: Basic user password

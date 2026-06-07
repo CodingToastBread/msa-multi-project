@@ -21,7 +21,7 @@ spring:
        # password: 평문 -> password
       password: $2a$10$Niu.iMKxv4JAGqvmKvksRuQUM96Gx3f/hyCI05Ny2mDj22imH9ANS
 server:
-  port: 60000
+  port: 0
 eureka:
   instance:
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
