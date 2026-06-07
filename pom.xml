@@ -63,6 +63,8 @@
         <module>second-service</module>
         <module>user-service</module>
         <module>service-discovery</module>
+        <module>catalog-service</module>
+        <module>order-service</module>
         <module>gateway</module>
     </modules>
 

@@ -1,4 +1,4 @@
-### Send POST request with json body
+### CREATE USER
 POST http://localhost:8000/user-service/users
 Authorization: Basic user password
 Content-Type: application/json
@@ -9,14 +9,24 @@ Content-Type: application/json
   "pwd": "1234"
 }
 
-###
-GET http://localhost:8000/user-service/welcome
-Authorization: Basic user password
 
-###
+### USER LIST
 GET http://localhost:8000/user-service/users
 Authorization: Basic user password
 
-###
-GET http://localhost:8000/user-service/users/dcc33e1b-a200-493e-b1a8-f92dfc4ad9fa
+### USER DETAIL
+GET http://localhost:8000/user-service/users/9b52e91c-cb26-4197-8d86-6e38ca920312
 Authorization: Basic user password
+
+### CATALOG LIST
+GET http://localhost:8000/catalog-service/catalogs
+
+### 주문 넣기
+POST http://localhost:8000/order-service/9b52e91c-cb26-4197-8d86-6e38ca920312/orders
+Content-Type: application/json
+
+{
+  "productId": "CATALOG-003",
+  "qty": 10,
+  "unitPrice": 1200
+}
