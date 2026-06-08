@@ -70,3 +70,6 @@ eureka:
 
 server:
   port: 8000
+
+token:
+  secret: my-very-long-secret-key-1234567890123456
