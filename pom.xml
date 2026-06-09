@@ -66,6 +66,7 @@
         <module>catalog-service</module>
         <module>order-service</module>
         <module>gateway</module>
+        <module>config-service</module>
     </modules>
 
 
