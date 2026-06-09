@@ -1,6 +1,9 @@
 spring:
   application:
     name: user-service
+#   bootstrap.yaml 쓰기 싫으면 아래 2줄 추가해서 대체 가능
+#  config:
+#    import: "optional:configserver:http://localhost:8888"
   h2:
     console:
       enabled: true
