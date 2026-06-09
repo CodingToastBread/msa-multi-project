@@ -38,7 +38,8 @@ public class WebSecurity {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/**").access(
                                 new WebExpressionAuthorizationManager(
-                                        "hasIpAddress('127.0.0.1') or hasIpAddress('::1') or hasIpAddress('172.30.1.93') or hasIpAddress('::1')"))
+                                        "hasIpAddress('127.0.0.1') or hasIpAddress('::1') " +
+                                                "or hasIpAddress('121.160.17.38') or hasIpAddress('::1')"))
                         .anyRequest().authenticated())
                 .authenticationManager(authenticationManager)
                 .addFilter(getAuthentication(authenticationManager))

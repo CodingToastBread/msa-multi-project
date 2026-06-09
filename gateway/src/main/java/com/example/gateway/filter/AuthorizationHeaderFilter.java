@@ -84,6 +84,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory<Auth
 //            subject = jwtParser.parseClaimsJws(jwt).getBody().getSubject();
             subject = jwtParser.parseSignedClaims(jwt).getPayload().getSubject();
         } catch (Exception e) {
+            log.error("isJwtValid Exception:", e);
             returnValue = false;
         }
 
