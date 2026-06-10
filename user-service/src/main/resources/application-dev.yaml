@@ -1,9 +1,7 @@
 spring:
   application:
     name: user-service
-  profiles:
-    active: dev
-  #   bootstrap.yaml 쓰기 싫으면 아래 2줄 추가해서 대체 가능
+#   bootstrap.yaml 쓰기 싫으면 아래 2줄 추가해서 대체 가능
 #  config:
 #    import: "optional:configserver:http://localhost:8888"
   h2:
@@ -26,7 +24,7 @@ spring:
        # password: 평문 -> password
       password: $2a$10$Niu.iMKxv4JAGqvmKvksRuQUM96Gx3f/hyCI05Ny2mDj22imH9ANS
 server:
-  port: 0
+  port: 60000
 eureka:
   instance:
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
@@ -37,7 +35,7 @@ eureka:
       defaultZone: http://127.0.0.1:8761/eureka
 
 greeting:
-  message: Welcome to the Simple E-commerce (spring boot)
+  message: Welcome to the Simple E-commerce (dev profile)
 
 #token:
 #  secret: my-very-long-secret-key-1234567890123456

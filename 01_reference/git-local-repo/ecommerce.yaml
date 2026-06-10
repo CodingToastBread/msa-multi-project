@@ -2,5 +2,8 @@ token:
   expiration-time: 86400000
   secret: cmy-very-long-secret-key-1234567890123456-from-git
 
-gateway:
-  ip: 192.168.0.8
+#gateway:
+#  ip: 192.168.0.8
+
+# greeting:
+#   message: Welcome to the Simple E-commerce (config server)
