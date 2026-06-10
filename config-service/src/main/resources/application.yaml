@@ -1,9 +1,13 @@
 spring:
   application:
     name: config-service
+  profiles:
+    active: native # 이거 안하면 기본으로 cloud.config.server.git 을 사용함.
   cloud:
     config:
       server:
+        native:
+          search-locations: file://${user.home}/IdeaProjects/msa-multi-project/01_reference/native-repo
         git:
           uri: file:///Users/codingtoast/IdeaProjects/git-local-repo
           default-label: main
