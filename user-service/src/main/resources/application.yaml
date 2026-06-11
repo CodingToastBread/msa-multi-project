@@ -1,8 +1,13 @@
 spring:
   application:
     name: user-service
-  profiles:
-    active: dev
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: guest
+    password: guest
+#  profiles:
+#    active: dev
   #   bootstrap.yaml 쓰기 싫으면 아래 2줄 추가해서 대체 가능
 #  config:
 #    import: "optional:configserver:http://localhost:8888"
@@ -52,3 +57,5 @@ management:
           - health
           - beans
           - info
+          - busrefresh
+

@@ -1,6 +1,11 @@
 spring:
   application:
     name: config-service
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: guest
+    password: guest
   profiles:
     active: native # 이거 안하면 기본으로 cloud.config.server.git 을 사용함.
   cloud:
@@ -13,3 +18,14 @@ spring:
           default-label: main
 server:
   port: 8888
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - refresh
+          - health
+          - beans
+          - info
+          - httpexchanges
+          - busrefresh
