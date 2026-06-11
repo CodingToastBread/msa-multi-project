@@ -23,12 +23,6 @@ spring:
       bindings:
         springCloudBusInput:
           group: ${spring.application.name}-${random.uuid}
-      rabbit:
-        bindings:
-          springCloudBusInput:
-            consumer:
-              # 종료 시 큐 자동 삭제(non-durable + auto-delete) → 유령 큐 누적 방지
-              durable-subscription: false
 server:
   port: 8888
 management:
