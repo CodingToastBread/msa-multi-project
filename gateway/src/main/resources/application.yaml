@@ -1,6 +1,7 @@
 spring:
   application:
     name: gateway
+  #  podman run -d -p 5672:5672 -p 15672:15672 --name rabbitmq rabbitmq:4.0.9-management # 버전을 너무 높이면 호환성 에러!
   rabbitmq:
     host: 127.0.0.1
     port: 5672
@@ -8,12 +9,6 @@ spring:
     password: guest
 
   cloud:
-    # RabbitMQ 4.x 대응: Bus 익명(auto-delete/exclusive) 큐 404 루프 방지를 위해
-    # 이름 있는 durable 큐(springCloudBus.<group>)를 사용한다.
-    stream:
-      bindings:
-        springCloudBusInput:
-          group: ${spring.application.name}-${random.uuid}
     gateway:
       server:
         webflux:
@@ -98,4 +93,5 @@ management:
           - info
           - httpexchanges
           - busrefresh
+#          - busenv
 

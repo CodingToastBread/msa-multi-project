@@ -1,6 +1,7 @@
 spring:
   application:
     name: config-service
+#  podman run -d -p 5672:5672 -p 15672:15672 --name rabbitmq rabbitmq:4.0.9-management # 버전을 너무 높이면 호환성 에러!
   rabbitmq:
     host: 127.0.0.1
     port: 5672
@@ -16,13 +17,6 @@ spring:
         git:
           uri: file:///Users/codingtoast/IdeaProjects/git-local-repo
           default-label: main
-    # RabbitMQ 4.x 대응: Spring Cloud Bus 가 익명(auto-delete/exclusive) 큐를 쓰면
-    # 큐가 선언 직후 삭제되어 404(NOT_FOUND) 루프가 발생한다.
-    # group 을 지정해 이름 있는 durable 큐(springCloudBus.<group>)를 쓰게 한다.
-    stream:
-      bindings:
-        springCloudBusInput:
-          group: ${spring.application.name}-${random.uuid}
 server:
   port: 8888
 management:
@@ -36,3 +30,4 @@ management:
           - info
           - httpexchanges
           - busrefresh
+#          - busenv
