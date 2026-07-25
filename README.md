@@ -196,6 +196,33 @@ application.name: user-service
 
 > 🔑 **핵심**: JWT를 *발급*하는 곳(user-service)과 *검증*하는 곳(gateway)이 **똑같은 `token.secret`을 공유해야 한다.** 그래서 이 비밀키를 각 서비스에 하드코딩하지 않고 Config Server 한 곳에 두고 모두가 부팅 시 받아간다. → 아래 [주의사항](#주의사항--config--반드시-읽을-것) 참고.
 
+### (C) 실제 사용법 — 회원가입 → 로그인 → 인증요청 (복습용)
+
+로그인은 **DB에 저장된 회원**을 인증한다. 즉 **① 회원가입 → ② 로그인**의 2단계다. (`application.yaml`의 `spring.security.user`(user/password)는 안 쓰이는 잔재이니 헷갈리지 말 것 — 실제 로그인은 아래처럼 email 기반이다.)
+
+**① 회원가입** — `POST :8000/user-service/users`
+```json
+{ "email": "example@example.com", "name": "example", "pwd": "1234" }
+```
+- 비밀번호는 BCrypt로 암호화되어 H2 DB에 저장된다. (H2라 재시작하면 사라짐 → 매번 재가입 필요)
+
+**② 로그인** — `POST :8000/user-service/login`
+```json
+{ "email": "example@example.com", "password": "1234" }
+```
+- 성공 시 **응답 헤더**로 `token`(JWT)과 `userId`가 온다. (응답 바디 아님 — 헤더를 봐야 함)
+
+**③ 인증 필요한 요청** — 받은 JWT를 헤더에 실어 호출
+```
+GET :8000/user-service/users
+Authorization: Bearer <②에서 받은 token>
+```
+- gateway의 `AuthorizationHeaderFilter`가 JWT를 검증한다. 헤더 없거나 서명 안 맞으면 401.
+
+> ⚠️ **필드 이름 함정**: 회원가입은 `pwd`, 로그인은 `password`로 키 이름이 **다르다** (각각 `RequestUser`, `RequestLogin` VO를 따름). 복붙하다 자주 틀리는 지점.
+>
+> 실행 가능한 예시 요청은 `01_reference/test.http`에 모두 있다.
+
 ---
 
 ## 6. 설정 중앙화 + 실시간 갱신 (Config + RabbitMQ Bus)

@@ -24,6 +24,13 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+  # [주의] 아래 security.user 는 현재 "안 쓰이는 잔재"다.
+  # 이건 Spring Boot 가 제공하는 기본 계정(default user) 설정인데,
+  # WebSecurity.java 에서 DB 기반 커스텀 UserDetailsService(UserServiceImpl)를
+  # 직접 꽂는 순간 Spring Boot 의 기본 계정 자동생성이 꺼진다(back off).
+  # => 실제 로그인은 이 user/password 가 아니라, 회원가입(POST /users)으로
+  #    DB 에 저장된 사용자를 email + password 로 인증한다.
+  # 강의 초반 시큐리티 실습(HTTP Basic) 흔적이며, 지금은 지워도 무방.
   security:
     user:
       name: user
