@@ -85,7 +85,39 @@ msa-multi-project/                     ← 루트 (부모 POM, 버전/의존성 
 | **first-service** | `MY-FIRST-SERVICE` | 데모 | 게이트웨이 필터 실습 |
 | **second-service** | `MY-SECOND-SERVICE` | 데모 | 게이트웨이 필터 실습 |
 
-> ⚠️ **Eureka 등록명이 곧 라우팅 대상**이다. `spring.application.name`과 게이트웨이의 `lb://` 타깃이 정확히 일치해야 한다. (first/second는 `MY-FIRST-SERVICE`/`MY-SECOND-SERVICE`로 등록됨에 주의)
+### Eureka 등록명은 어떻게 정해지나 (복습 포인트)
+
+> 오랜만에 봤을 때 헷갈리는 지점이라 기록해 둔다.
+
+**등록명 = 각 서비스 `application.yaml`의 `spring.application.name` 한 줄이 전부다.**
+별도 등록 코드는 없다 — Eureka Client 의존성 + 이 이름만 있으면 부팅 시 자동으로 `:8761`에 신고된다.
+
+```yaml
+# user-service/src/main/resources/application.yaml
+spring:
+  application:
+    name: user-service      # ← 이 값이 그대로 Eureka 등록명이 됨
+```
+
+기억해야 할 규칙 3가지:
+
+1. **Eureka엔 대문자로 저장된다.** → `user-service` 로 선언해도 등록부엔 `USER-SERVICE`. 그래서 gateway는 `lb://USER-SERVICE`(대문자)로 부른다.
+2. **폴더명 ≠ 등록명.** `first-service` 폴더의 `application.name`은 `my-first-service`라서 등록명은 `MY-FIRST-SERVICE`다. 진짜 이름은 항상 `application.name`을 봐야 한다. (라우팅이 안 되면 여기부터 의심)
+3. **이름(종류) vs instance-id(개체)는 다르다.** `application.name`은 "서비스 종류 이름", `eureka.instance.instance-id`는 같은 종류를 여러 대 띄웠을 때 구분하는 개체 이름표다. `server.port: 0`(랜덤 포트)로 여러 인스턴스가 공존할 수 있어서, instance-id에 `${random.value}`를 붙여 충돌을 막는다.
+
+```
+application.name: user-service
+        │ 부팅 시 Eureka Client가 자동 신고
+        ▼
+┌──────────── Eureka Server (:8761) ────────────┐
+│  USER-SERVICE  → 192.168.x.x:52413 (instance A) │  ← 같은 이름,
+│  USER-SERVICE  → 192.168.x.x:52890 (instance B) │     여러 대면 instance-id로 구분
+└─────────────────────────────────────────────────┘
+        ▲ "USER-SERVICE 어디야?" → IP 목록 받아 로드밸런싱
+   gateway (lb://USER-SERVICE)
+```
+
+> ⚠️ **핵심**: `spring.application.name`(= 등록명)과 게이트웨이의 `lb://` 타깃이 **정확히 일치**해야 라우팅된다. 안 맞으면 503. first/second가 `MY-FIRST-SERVICE`/`MY-SECOND-SERVICE`인 걸 특히 조심.
 
 ---
 
