@@ -1,6 +1,22 @@
-token:
-  expiration-time: 864000000
-  secret: user_token_native_user_service
+#token:
+#  expiration-time: 864000000
+#  secret: user_token_native_user_service
+#
+#gateway:
+#  ip: 192.168.0.7
 
-gateway:
-  ip: 192.168.0.7
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password: sa_pw
+  # devtools 가 enabled=true 는 자동으로 켜주지만 web-allow-others 는 안 켜준다.
+  # => 127.0.0.1 이 아닌 주소(LAN IP 등)로 접속하면 'webAllowOthers' 에러가 난다.
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+얯

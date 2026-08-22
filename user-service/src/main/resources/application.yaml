@@ -10,17 +10,19 @@ spring:
 #  # bootstrap.yaml 쓰기 싫으면 아래 2줄 추가해서 대체 가능
 #  config:
 #    import: "optional:configserver:http://localhost:8888"
-  h2:
-    console:
-      enabled: true
-      settings:
-        web-allow-others: true
-      path: /h2-console
-  datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;
-    username: sa
-    password:
+
+# native-repo/user-service.yml 로 내용을 옮김
+#  h2:
+#    console:
+#      enabled: true
+#      settings:
+#        web-allow-others: true
+#      path: /h2-console
+#  datasource:
+#    driver-class-name: org.h2.Driver
+#    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;
+#    username: sa
+#    password:
   jpa:
     hibernate:
       ddl-auto: update
