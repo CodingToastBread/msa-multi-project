@@ -10,7 +10,7 @@ spring:
     driver-class-name: org.h2.Driver
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
     username: sa
-    password: '{cipher}70dd5a21e34dd25fb57e5327ec5ce79b20310207975b42bbd8e913c85a306fb9'
+    password: '{cipher}AYBfbkIn8q3YoaBTUQiyHoOfJRUxCuTwphLjFayl35tCdXawC0Z0S7xTaV8nZUsm2r7kWtnABVJZ7j6Sj0IDDoLiQTALvaSu5GzR50DOAMdcXrCyU1DO3f8IfgMSRh/yrN9lTmAh2VvrUxR/Knl3TbPwNF0CCsz31ehht5vnhp7BTc/c0xACJH9MdxI86m1zORXUpGBguryvn9V71QqRWtFX02OBvpM1rNCnRkxscvWFP1vDiUrqrWBMHVwId393iZ5EiDwW0u9Zee8H/Y8ljiynJ9d7AsgKII51cQTcB3GG4kZs4mRraOqVdD/xcdCcyLdNi2OxCw9iLPsnkp4QmhXhHV2BkftOj2pq6OcaUnSw0PMRS2fHYNBCypcaTo7mDmU1ZD+QxuQkEMt7Tz0sYHp43VMyNYdXq1H5343uUjzzeJGJQvWBUWcG4Azp41dErEf+648/nJ+/OxddtVekpXWHh871Q5oEZzzGcpSAsJ2VywPDkFWlIzivKCm0P+L26aG4SHM+x4BuDuiXIw5i5U3S0/kC+GAopN4akyd+/7NObw=='
   # devtools 가 enabled=true 는 자동으로 켜주지만 web-allow-others 는 안 켜준다.
   # => 127.0.0.1 이 아닌 주소(LAN IP 등)로 접속하면 'webAllowOthers' 에러가 난다.
   h2:

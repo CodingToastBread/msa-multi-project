@@ -1,2 +1,6 @@
 encrypt:
-  key: abcdefghik12345
+#  key: abcdefghik12345
+  key-store:
+    location: file:///${user.home}/study/msa-multi-project/keystore/apiEncryptionKey.jks
+    password: 1q2w3e4r
+    alias: apiEncryptionKey
