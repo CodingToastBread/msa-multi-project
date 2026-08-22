@@ -10,7 +10,7 @@ spring:
     driver-class-name: org.h2.Driver
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
     username: sa
-    password: sa_pw
+    password: '{cipher}70dd5a21e34dd25fb57e5327ec5ce79b20310207975b42bbd8e913c85a306fb9'
   # devtools 가 enabled=true 는 자동으로 켜주지만 web-allow-others 는 안 켜준다.
   # => 127.0.0.1 이 아닌 주소(LAN IP 등)로 접속하면 'webAllowOthers' 에러가 난다.
   h2:
