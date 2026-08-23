@@ -350,6 +350,20 @@ http://localhost:8888/ecommerce/default    → token.secret 이 user_token_nativ
 
 ---
 
+## 주의사항 — IP 허용목록 ⚠️
+
+`user-service/.../security/WebSecurity.java`의 `hasIpAddress(...)` 목록에 **현재 내 PC의 LAN IP**가 들어있어야 한다. 없으면 gateway → user-service 요청이 전부 **401**.
+
+```java
+"hasIpAddress('127.0.0.1') or hasIpAddress('::1') or hasIpAddress('192.168.219.141')"
+                                                                  └─ 여기를 내 IP로 수정
+```
+
+- **왜 127.0.0.1로는 안 되나**: Eureka는 loopback이 아닌 IP(LAN IP)로 등록되고, gateway는 그 주소로 접속한다. 그래서 user-service가 보는 소스 IP는 `127.0.0.1`이 아니라 LAN IP다. (`127.0.0.1`은 user-service를 **직접** 호출할 때만 해당)
+- 공유기/와이파이가 바뀌면 IP도 바뀌므로 **다시 띄울 때마다 확인**. 현재 IP는 `ifconfig | grep "inet "`, 실제 등록값은 `http://localhost:8761`에서 확인.
+
+---
+
 ## 부록 — 아직 구현되지 않은 부분 (다음 학습 후보)
 
 - `UserServiceImpl.getUserByUserId`는 주문 목록을 **빈 배열**로 반환한다. user→order 서비스 간 호출(FeignClient/WebClient)이 아직 미구현. (`ResponseOrder` 클래스만 존재)

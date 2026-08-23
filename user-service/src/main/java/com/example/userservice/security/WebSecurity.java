@@ -40,7 +40,7 @@ public class WebSecurity {
                         .requestMatchers("/**").access(
                                 new WebExpressionAuthorizationManager(
                                         "hasIpAddress('127.0.0.1') or hasIpAddress('::1') " +
-                                                "or hasIpAddress('121.160.17.38') or hasIpAddress('::1')"))
+                                                "or hasIpAddress('192.168.219.141') or hasIpAddress('::1')"))
                         .anyRequest().authenticated())
                 .authenticationManager(authenticationManager)
                 .addFilter(getAuthentication(authenticationManager))
