@@ -25,3 +25,5 @@ order-service:
   # User-Service 에서 @LoadBalanced 애노테이션을 RestTemplate 에 부여했기 때문에 order-service 라는 부분을
   # Eureka 서버에서 정확한 IP 와 Port 로 바꿔치기 해서 전달된다.
   url: http://order-service/order-service/%s/orders
+  exception:
+    order-is-empty: "User's orders is empty"
