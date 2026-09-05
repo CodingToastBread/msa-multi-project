@@ -39,3 +39,8 @@ build/
 # kafka 로컬 데이터 (docker bind mount)
 kafka-practice/data/
 kafka-practice/mariadb-data
+
+# Kafka Connect JDBC 커넥터 (Confluent Hub 에서 받는 27MB 짜리 jar 묶음)
+# MariaDB 드라이버만 저장소에 두고, 나머지는 받아서 채운다
+kafka-practice/connect-plugins/jdbc/*.jar
+!kafka-practice/connect-plugins/jdbc/mariadb-java-client-*.jar
