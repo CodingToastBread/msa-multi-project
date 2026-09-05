@@ -2,6 +2,7 @@ package com.example.orderservice.controller;
 
 import com.example.orderservice.dto.OrderDto;
 import com.example.orderservice.jpa.OrderEntity;
+import com.example.orderservice.messagequeue.KafkaProducer;
 import com.example.orderservice.service.OrdersService;
 import com.example.orderservice.vo.RequestOrder;
 import com.example.orderservice.vo.ResponseOrder;
@@ -23,8 +24,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class
 OrderController {
-    private final OrdersService ordersService;
     private final Environment env;
+    private final OrdersService ordersService;
+    private final KafkaProducer kafkaProducer;
 
     @GetMapping("/health-check")
     public String status() {
@@ -39,12 +41,16 @@ OrderController {
         ModelMapper modelMapper = new ModelMapper();
         modelMapper.getConfiguration().setMatchingStrategy(MatchingStrategies.STRICT);
 
+        /* jpa */
         OrderDto orderDto = modelMapper.map(orderDetails, OrderDto.class);
         orderDto.setUserId(userId);
-
         OrderDto createDto = ordersService.createOrder(orderDto);
 
         ResponseOrder responseOrder = modelMapper.map(createDto, ResponseOrder.class);
+
+        /* send this order to kafka */
+        kafkaProducer.send("example-catalog-topic", orderDto);
+
         return ResponseEntity.status(HttpStatus.CREATED).body(responseOrder);
     }
 
