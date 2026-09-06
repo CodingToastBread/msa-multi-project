@@ -17,7 +17,7 @@
       "type": "bearer",
       "credentials": {
         "username": "",
-        "password": "eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiI4NTljZDg1Mi1kMTBjLTRmNWYtOTcyNC1jNDJmMTBlMTc1NDEiLCJleHAiOjE3ODgzMjgwOTUsImlhdCI6MTc4NzQ2NDA5NX0.ygp4lBZ2CFKTljG18OXjX3tSHRsgSPiNds0K1E4CQ36mA4XTArukxQyjakNIPgQh"
+        "password": "eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJhODRkYmE5Yy04MDliLTQwNDMtOGJhZS04Yzk2MjdhZGYxMGMiLCJleHAiOjE3ODk1MzQyODcsImlhdCI6MTc4ODY3MDI4N30.CuiDa4RIQ_DoB_GjaJEkjjRYm4zeHlgzorD0kffoLfX65w9HlqbtAaplcUlbEcZa"
       },
       "target": "headers"
     },
@@ -111,7 +111,7 @@
       },
       {
         "name": "user-service-detail(JWT TEST)",
-        "url": "127.0.0.1:8000/user-service/users/859cd852-d10c-4f5f-9724-c42f10e17541",
+        "url": "127.0.0.1:8000/user-service/users/a84dba9c-809b-4043-8bae-8c9627adf10c",
         "method": "GET",
         "headers": [],
         "queryParams": [],
@@ -140,7 +140,7 @@
       },
       {
         "name": "order-service/new-order",
-        "url": "127.0.0.1:8000/order-service/859cd852-d10c-4f5f-9724-c42f10e17541/orders",
+        "url": "127.0.0.1:8000/order-service/a84dba9c-809b-4043-8bae-8c9627adf10c/orders",
         "method": "POST",
         "headers": [],
         "queryParams": [],
@@ -154,7 +154,7 @@
             "name": ""
           },
           "text": {
-            "value": "{\n  \"productId\": \"CATALOG-003\",\n  \"qty\": 15,\n  \"unitPrice\": 2000\n}",
+            "value": "{\n  \"productId\": \"CATALOG-001\",\n  \"qty\": 10,\n  \"unitPrice\": 1500\n}",
             "format": "application/json"
           },
           "form": {
@@ -184,6 +184,93 @@
           },
           "text": {
             "value": "",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      },
+      {
+        "name": "kafka-conn/list",
+        "url": "127.0.0.1:8083/connectors",
+        "method": "GET",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "inherited"
+        },
+        "body": {
+          "type": "none",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      },
+      {
+        "name": "kafka-conn/detail",
+        "url": "127.0.0.1:8083/connectors/my-order-sink-connect",
+        "method": "GET",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "inherited"
+        },
+        "body": {
+          "type": "none",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      },
+      {
+        "name": "kafka-conn/create",
+        "url": "127.0.0.1:8083/connectors",
+        "method": "POST",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "inherited"
+        },
+        "body": {
+          "type": "text",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "{\n    \"name\": \"my-order-sink-connect\",\n    \"config\": {\n      \"connector.class\": \"io.confluent.connect.jdbc.JdbcSinkConnector\",\n      \"connection.url\": \"jdbc:mariadb://mariadb:3306/mydb\",\n      \"connection.user\": \"root\",\n      \"connection.password\": \"test1357\",\n      \"auto.create\": \"true\",\n      \"auto.evolve\": \"true\",\n      \"delete.enabled\": \"false\",\n      \"tasks.max\": \"1\",\n      \"topics\": \"orders\"\n    }\n  }",
             "format": "application/json"
           },
           "form": {
