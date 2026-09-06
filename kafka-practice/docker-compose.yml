@@ -67,35 +67,35 @@ services:
       timeout: 5s
       retries: 10
 
-  connect:
-    image: confluentinc/cp-kafka-connect:8.3.1
-    container_name: connect
-    ports:
-      - "8083:8083"
-    environment:
-      CONNECT_BOOTSTRAP_SERVERS: kafka:19092
-      CONNECT_GROUP_ID: connect-cluster
-      CONNECT_REST_ADVERTISED_HOST_NAME: connect
-
-      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
-      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
-      CONNECT_STATUS_STORAGE_TOPIC: connect-status
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-
-      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_PLUGIN_PATH: /usr/share/java,/plugins
-    volumes:
-      - ./connect-plugins:/plugins
-    # 이미지에 박힌 HEALTHCHECK 가 curl 을 쓰는데 정작 이미지에 curl 이 없어 100% 실패한다.
-    # (컨테이너는 멀쩡히 동작 — 8083 LISTEN, REST 200) 끄지 않으면 항상 unhealthy 로 표시된다.
-    # healthcheck 항목을 아예 안 쓰면 이미지 것이 그대로 상속되므로 disable 을 명시해야 한다.
-    healthcheck:
-      disable: true
-    depends_on:
-      kafka:
-        condition: service_healthy
-      mariadb:
-        condition: service_healthy
+#  connect:
+#    image: confluentinc/cp-kafka-connect:8.3.1
+#    container_name: connect
+#    ports:
+#      - "8083:8083"
+#    environment:
+#      CONNECT_BOOTSTRAP_SERVERS: kafka:19092
+#      CONNECT_GROUP_ID: connect-cluster
+#      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+#
+#      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
+#      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
+#      CONNECT_STATUS_STORAGE_TOPIC: connect-status
+#      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+#      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+#      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+#
+#      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+#      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+#      CONNECT_PLUGIN_PATH: /usr/share/java,/plugins
+#    volumes:
+#      - ./connect-plugins:/plugins
+#    # 이미지에 박힌 HEALTHCHECK 가 curl 을 쓰는데 정작 이미지에 curl 이 없어 100% 실패한다.
+#    # (컨테이너는 멀쩡히 동작 — 8083 LISTEN, REST 200) 끄지 않으면 항상 unhealthy 로 표시된다.
+#    # healthcheck 항목을 아예 안 쓰면 이미지 것이 그대로 상속되므로 disable 을 명시해야 한다.
+#    healthcheck:
+#      disable: true
+#    depends_on:
+#      kafka:
+#        condition: service_healthy
+#      mariadb:
+#        condition: service_healthy
