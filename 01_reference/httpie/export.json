@@ -1,0 +1,201 @@
+{
+  "meta": {
+    "format": "httpie",
+    "version": "1.0.0",
+    "contentType": "collection",
+    "schema": "https://schema.httpie.io/1.0.0.json",
+    "docs": "https://httpie.io/r/help/export-from-httpie",
+    "source": "HTTPie Desktop 2025.2.0"
+  },
+  "entry": {
+    "name": "spring-msa-inflearn",
+    "icon": {
+      "name": "default",
+      "color": "gray"
+    },
+    "auth": {
+      "type": "bearer",
+      "credentials": {
+        "username": "",
+        "password": "eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiI4NTljZDg1Mi1kMTBjLTRmNWYtOTcyNC1jNDJmMTBlMTc1NDEiLCJleHAiOjE3ODgzMjgwOTUsImlhdCI6MTc4NzQ2NDA5NX0.ygp4lBZ2CFKTljG18OXjX3tSHRsgSPiNds0K1E4CQ36mA4XTArukxQyjakNIPgQh"
+      },
+      "target": "headers"
+    },
+    "requests": [
+      {
+        "name": "user-service-create-user",
+        "url": "127.0.0.1:8000/user-service/users",
+        "method": "POST",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "none"
+        },
+        "body": {
+          "type": "text",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "{\n  \"email\": \"codingToast@gmail.com\",\n  \"name\": \"Toast Bread\",\n  \"pwd\": \"12345\"\n}",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      },
+      {
+        "name": "user-service-login",
+        "url": "127.0.0.1:8000/user-service/login",
+        "method": "POST",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "none"
+        },
+        "body": {
+          "type": "text",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "{\n  \"email\": \"codingToast@gmail.com\",\n  \"password\": \"12345\"\n}",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      },
+      {
+        "name": "user-service-list(JWT TEST)",
+        "url": "127.0.0.1:8000/user-service/users",
+        "method": "GET",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "inherited"
+        },
+        "body": {
+          "type": "none",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      },
+      {
+        "name": "user-service-detail(JWT TEST)",
+        "url": "127.0.0.1:8000/user-service/users/859cd852-d10c-4f5f-9724-c42f10e17541",
+        "method": "GET",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "inherited"
+        },
+        "body": {
+          "type": "none",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      },
+      {
+        "name": "order-service/new-order",
+        "url": "127.0.0.1:8000/order-service/859cd852-d10c-4f5f-9724-c42f10e17541/orders",
+        "method": "POST",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "inherited"
+        },
+        "body": {
+          "type": "text",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "{\n  \"productId\": \"CATALOG-003\",\n  \"qty\": 15,\n  \"unitPrice\": 2000\n}",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      },
+      {
+        "name": "catalog-service/list",
+        "url": "http://127.0.0.1:8000/catalog-service/catalogs",
+        "method": "GET",
+        "headers": [],
+        "queryParams": [],
+        "pathParams": [],
+        "auth": {
+          "type": "inherited"
+        },
+        "body": {
+          "type": "none",
+          "file": {
+            "name": ""
+          },
+          "text": {
+            "value": "",
+            "format": "application/json"
+          },
+          "form": {
+            "isMultipart": false,
+            "fields": []
+          },
+          "graphql": {
+            "query": "",
+            "variables": ""
+          }
+        }
+      }
+    ]
+  }
+}
