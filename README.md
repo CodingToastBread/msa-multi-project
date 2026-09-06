@@ -20,10 +20,16 @@ msa-multi-project/                     ← 루트 (부모 POM, 버전/의존성 
 ├── first-service/       (:8081)   ┐ 게이트웨이 라우팅/필터 실습용
 ├── second-service/      (:8082)   ┘ 데모 (도메인 아님)
 │
-└── 01_reference/
-    ├── native-repo/      ← Config Server가 읽는 설정 파일 저장소 (native 모드)
-    ├── git-local-repo/   ← Config Server용 git 모드 저장소 (대기)
-    └── test.http         ← 전체 흐름 테스트용 요청 모음 (전부 :8000 으로 감)
+├── 01_reference/
+│   ├── native-repo/      ← Config Server가 읽는 설정 파일 저장소 (native 모드)
+│   ├── git-local-repo/   ← Config Server용 git 모드 저장소 (대기)
+│   ├── httpie/           ← Httpie 요청 export
+│   └── test.http         ← 전체 흐름 테스트용 요청 모음 (전부 :8000 으로 감)
+│
+└── kafka-practice/       ← 인프라 컨테이너(Kafka·Kafka UI·MariaDB) + 카프카 학습 문서
+    ├── docker-compose.yml
+    ├── mariadb-ddl.sql
+    └── ABOUT_KAFKA/      ← 개념 / compose 해설 / Connect 실습 정리
 ```
 
 > `:0` = OS가 포트를 랜덤 배정. 그래서 이 서비스들은 **포트로 부르지 않고 Eureka에 등록된 이름으로만** 찾는다. 이게 MSA의 핵심 감각.
@@ -36,7 +42,7 @@ msa-multi-project/                     ← 루트 (부모 POM, 버전/의존성 
 
 ```
         ┌──────────────────────────────────────────────────────────┐
-        │                    ① Config Server (:8888)                │
+        │                  [1] Config Server (:8888)                │
         │   "모든 서비스의 설정(비밀키 등)을 한 곳에서 관리"          │
         │   설정 원본 → 01_reference/native-repo/*.yml              │
         └──────────────────────────────────────────────────────────┘
@@ -51,13 +57,13 @@ msa-multi-project/                     ← 루트 (부모 POM, 버전/의존성 
    └────────────────┼─────────────────┘
                     ▼ "나 여기 있어요!" 등록(register)
         ┌──────────────────────────────────────────────────────────┐
-        │              ② Eureka Server (:8761)                      │
+        │            [2] Eureka Server (:8761)                      │
         │   "서비스 주소록 — 누가 어느 IP:포트에 떠있는지 관리"      │
         └──────────────────────────────────────────────────────────┘
                     ▲ "USER-SERVICE 어디 있어?" 조회(discover)
                     │
         ┌───────────┴──────────────────────────────────────────────┐
-        │              ③ API Gateway (:8000)                        │
+        │            [3] API Gateway (:8000)                        │
         │   "바깥세상 → 내부로 들어오는 유일한 문. 경로별 라우팅"     │
         └───────────┬──────────────────────────────────────────────┘
                     ▲
@@ -75,13 +81,13 @@ msa-multi-project/                     ← 루트 (부모 POM, 버전/의존성 
 
 ## 3. 비즈니스 서비스
 
-세 서비스는 동일한 계층 패턴(`controller → service(impl) → jpa`)을 따르며, 전송 객체는 `vo`(요청/응답)와 `dto`(내부)로 나누고 **ModelMapper(STRICT)**로 변환한다. 모두 **인메모리 H2**(`jdbc:h2:mem:testdb`)를 쓰므로 재시작하면 데이터가 사라진다. (`/h2-console`에서 조회 가능)
+세 서비스는 동일한 계층 패턴(`controller → service(impl) → jpa`)을 따르며, 전송 객체는 `vo`(요청/응답)와 `dto`(내부)로 나누고 **ModelMapper(STRICT)**로 변환한다. 대부분 **인메모리 H2**(`jdbc:h2:mem:testdb`)를 쓰므로 재시작하면 데이터가 사라진다. (`/h2-console`에서 조회 가능) 단 **order-service만 예외로 MariaDB를 쓴다** — 인스턴스를 여러 대 띄우면 인메모리 H2로는 주문이 흩어지기 때문이다. (자세한 건 [10장 Kafka](#10-kafka--서비스-간-데이터-동기화))
 
 | 서비스 | Eureka 등록명 | 주요 엔드포인트 | 비고 |
 |--------|--------------|----------------|------|
 | **user-service** | `USER-SERVICE` | `POST /users`(가입), `POST /login`, `GET /users/{userId}` | Security + JWT 발급 |
 | **catalog-service** | `CATALOG-SERVICE` | `GET /catalogs`, `/health-check` | `ddl-auto: create-drop` (부팅마다 재시딩) |
-| **order-service** | `ORDER-SERVICE` | `POST /{userId}/orders`, `GET /{userId}/orders` | userId 기준 주문 |
+| **order-service** | `ORDER-SERVICE` | `POST /{userId}/orders`, `GET /{userId}/orders` | 혼자만 **MariaDB**(H2 아님)를 쓰고, 주문을 DB에 직접 저장하지 않고 Kafka로 발행한다 — 이유는 [10장 Kafka](#10-kafka--서비스-간-데이터-동기화) |
 | **first-service** | `MY-FIRST-SERVICE` | 데모 | 게이트웨이 필터 실습 |
 | **second-service** | `MY-SECOND-SERVICE` | 데모 | 게이트웨이 필터 실습 |
 
@@ -198,24 +204,24 @@ application.name: user-service
 
 ### (C) 실제 사용법 — 회원가입 → 로그인 → 인증요청 (복습용)
 
-로그인은 **DB에 저장된 회원**을 인증한다. 즉 **① 회원가입 → ② 로그인**의 2단계다. (`application.yaml`의 `spring.security.user`(user/password)는 안 쓰이는 잔재이니 헷갈리지 말 것 — 실제 로그인은 아래처럼 email 기반이다.)
+로그인은 **DB에 저장된 회원**을 인증한다. 즉 **[1] 회원가입 → [2] 로그인**의 2단계다. (`application.yaml`의 `spring.security.user`(user/password)는 안 쓰이는 잔재이니 헷갈리지 말 것 — 실제 로그인은 아래처럼 email 기반이다.)
 
-**① 회원가입** — `POST :8000/user-service/users`
+**[1] 회원가입** — `POST :8000/user-service/users`
 ```json
 { "email": "example@example.com", "name": "example", "pwd": "1234" }
 ```
 - 비밀번호는 BCrypt로 암호화되어 H2 DB에 저장된다. (H2라 재시작하면 사라짐 → 매번 재가입 필요)
 
-**② 로그인** — `POST :8000/user-service/login`
+**[2] 로그인** — `POST :8000/user-service/login`
 ```json
 { "email": "example@example.com", "password": "1234" }
 ```
 - 성공 시 **응답 헤더**로 `token`(JWT)과 `userId`가 온다. (응답 바디 아님 — 헤더를 봐야 함)
 
-**③ 인증 필요한 요청** — 받은 JWT를 헤더에 실어 호출
+**[3] 인증 필요한 요청** — 받은 JWT를 헤더에 실어 호출
 ```
 GET :8000/user-service/users
-Authorization: Bearer <②에서 받은 token>
+Authorization: Bearer <[2]에서 받은 token>
 ```
 - gateway의 `AuthorizationHeaderFilter`가 JWT를 검증한다. 헤더 없거나 서명 안 맞으면 401.
 
@@ -275,11 +281,11 @@ Maven 래퍼를 리포 루트에서 사용한다.
 중앙 런처가 없으므로 **터미널을 여러 개 열고 순서대로** 띄운다. 순서를 어기면 등록 실패로 무한 재시도한다.
 
 ```
-1️⃣ RabbitMQ 컨테이너            podman run ... rabbitmq:4.2.7-management
-2️⃣ service-discovery (Eureka)   ./mvnw -pl service-discovery spring-boot:run
-3️⃣ config-service               ← 다른 서비스가 부팅 시 여기 설정을 받아가므로 먼저
-4️⃣ gateway
-5️⃣ user / catalog / order / first / second  (순서 무관)
+[1] RabbitMQ 컨테이너            podman run ... rabbitmq:4.2.7-management
+[2] service-discovery (Eureka)   ./mvnw -pl service-discovery spring-boot:run
+[3] config-service               ← 다른 서비스가 부팅 시 여기 설정을 받아가므로 먼저
+[4] gateway
+[5] user / catalog / order / first / second  (순서 무관)
 ```
 
 전체 흐름 테스트는 `01_reference/test.http` (모든 요청이 게이트웨이 `:8000`으로 감).
@@ -303,10 +309,10 @@ Maven 래퍼를 리포 루트에서 사용한다.
 ### 두 가지 방식 — RestTemplate(주석 보존) / OpenFeign(현재)
 
 ```java
-// ① RestTemplate: @LoadBalanced 를 붙여야 호스트 자리에 Eureka 이름을 쓸 수 있다
+// [1] RestTemplate: @LoadBalanced 를 붙여야 호스트 자리에 Eureka 이름을 쓸 수 있다
 //    URL은 native-repo/user-service.yml 의 order-service.url
 
-// ② OpenFeign: @EnableFeignClients + 인터페이스 선언만
+// [2] OpenFeign: @EnableFeignClients + 인터페이스 선언만
 @FeignClient(name = "order-service", configuration = FeignErrorDecoder.class)
 List<ResponseOrder> getOrders(@PathVariable String userId);   // @GetMapping("/order-service/{userId}/orders")
 ```
@@ -337,11 +343,136 @@ Config Server는 `@EnableConfigServer` 하나로 **`/encrypt`, `/decrypt` 엔드
 
 ---
 
+## 10. Kafka — 서비스 간 데이터 동기화
+
+지금까지는 서비스끼리 **직접 호출**(Feign, 8장)했다. 여기서는 **메시지를 던져놓고 끝**내는 비동기 방식을 쓴다.
+주문이 발생하면 order-service는 Kafka에 **발행만** 하고, 나머지는 각자 알아서 가져간다.
+
+```
+                        POST :8000/order-service/{userId}/orders
+                                      │
+                        ┌─────── order-service ────────┐
+                        │  (발행만 하고 응답 반환)        │
+                        └───┬───────────────────┬───────┘
+       [1] KafkaProducer    │                   │   [2] OrderProducer
+           topic:           │                   │       topic: orders
+           example-catalog-topic                │
+                            ▼                   ▼
+                    ┌──────────────────────────────────┐
+                    │        Kafka (:9092)             │
+                    └────┬─────────────────────┬───────┘
+                         ▼                     ▼
+                  catalog-service        Kafka Connect (JDBC Sink)
+                  @KafkaListener               │
+                         │                     ▼
+                    재고(stock) 차감        MariaDB orders 테이블
+```
+
+핵심은 **같은 주문 이벤트를 두 갈래로 쓴다**는 것:
+
+| 경로 | 토픽 | 받는 쪽 | 목적 |
+|---|---|---|---|
+| **[1] 직접 컨슘** | `example-catalog-topic` | catalog-service 코드 (`@KafkaListener`) | 재고 차감 (**내 코드**가 처리) |
+| **[2] Connect Sink** | `orders` | Kafka Connect JDBC Sink | DB 저장 (**코드 없이** 커넥터가 처리) |
+
+### (A) 왜 H2를 버리고 MariaDB + Sink로 갔나
+
+order-service는 `server.port: 0`이라 **여러 대가 동시에 뜬다.** 그런데 기존엔 각 인스턴스가 자기 메모리 안의 H2를 들고 있었다.
+
+```
+[ 이전 — 각자 인메모리 H2 ]              [ 지금 — 토픽으로 모아서 한 DB ]
+
+order-svc A ─► H2(A)  주문 1건          order-svc A ─┐
+order-svc B ─► H2(B)  주문 1건          order-svc B ─┼─► topic: orders
+order-svc C ─► H2(C)  주문 1건          order-svc C ─┘         │
+                                                               ▼
+"내 주문 조회했는데 3건 중 1건만 나옴"                    JDBC Sink Connector
+ = 어느 인스턴스에 걸렸느냐에 따라 결과가 달라짐                 │
+                                                               ▼
+                                                     MariaDB orders (한 곳 ✓)
+```
+
+그래서 **DB에 쓰는 일 자체를 order-service에서 떼어냈다.**
+`OrderController`의 JPA 저장 코드는 주석 처리되어 있고, 대신 주문을 `orders` 토픽으로 보낸다 → Sink 커넥터가 그걸 꺼내 MariaDB에 넣는다 → 몇 대가 떠 있든 주문은 **한 테이블에 모인다.**
+
+> 요약: 인스턴스가 늘어나면 **인메모리 DB는 곧바로 깨진다.** 공용 DB(MariaDB)로 옮기고, 쓰기 경로를 Kafka로 일원화한 것.
+
+### (B) `orders` 토픽 메시지는 왜 이렇게 생겼나 — schema + payload
+
+Sink 커넥터는 "이 값이 어느 컬럼의 무슨 타입인지"를 모른다. 그래서 메시지에 **스키마를 같이 실어** 보낸다.
+(`OrderProducer` + `dto/{Schema,Field,Payload,KafkaOrderDto}` 가 이걸 만드는 코드)
+
+```json
+{
+  "schema":  { "type":"struct", "name":"orders",
+               "fields":[ {"type":"string","field":"order_id"} ] },
+  "payload": { "order_id":"...", "user_id":"...", "qty":3 }
+}
+```
+
+> 📌 payload의 키는 **DB 컬럼명(snake_case)** 이다. 자바 필드명(`orderId`)이 아니라 `order_id`.
+> 반면 [1]번(catalog-service)으로 가는 메시지는 `OrderDto`를 그대로 직렬화한 평범한 JSON이라 `productId`/`qty` 처럼 camelCase다. **두 토픽의 형식이 다르다**는 점을 헷갈리지 말 것.
+
+### (C) 코드 위치
+
+```
+order-service/messagequeue/
+  ├── KafkaProducerConfig.java   ← 브로커 주소(localhost:9092) + String 직렬화
+  ├── KafkaProducer.java         ← [1] OrderDto 그대로 → example-catalog-topic
+  └── OrderProducer.java         ← [2] schema+payload 로 감싸서 → orders
+
+catalog-service/messagequeue/
+  ├── KafkaConsumerConfig.java   ← 브로커 주소 + groupId(consumerGroup)
+  └── KafkaConsumer.java         ← @KafkaListener → productId로 찾아 stock 차감
+```
+
+### (D) 띄우는 순서
+
+```bash
+cd kafka-practice && docker compose up -d     # kafka + kafka-ui + mariadb
+# Sink([2])까지 쓸 거면 docker-compose.yml 의 connect 블록 주석 해제 후 재기동
+```
+
+| 확인할 것 | 주소 |
+|---|---|
+| Kafka UI (토픽/메시지 눈으로 보기) | http://localhost:8090 |
+| Connect REST | http://localhost:8083/connectors |
+
+Sink 커넥터 등록 명령은 → [`kafka-practice/ABOUT_KAFKA/04_test_with_spring.md`](kafka-practice/ABOUT_KAFKA/04_test_with_spring.md)
+
+### (E) 자주 밟는 지뢰 ⚠️
+
+**1. `StringDeserializer` import를 잘못 잡는다** (IDE 자동완성이 Jackson 걸 가져옴)
+
+```java
+✗ com.fasterxml.jackson.databind.deser.std.StringDeserializer   // Jackson 내부용
+✓ org.apache.kafka.common.serialization.StringDeserializer      // Kafka 용
+```
+
+> 증상: 기동 시 `Failed to start bean 'internalKafkaListenerEndpointRegistry'`
+> → 진짜 원인은 스택트레이스 맨 아래 `... is not an instance of ...Deserializer`. **로그 맨 밑줄부터 볼 것.**
+
+**2. 브로커 주소를 헷갈린다** — 호스트(Spring Boot)에서는 `localhost:9092`, 컨테이너끼리는 `kafka:19092`.
+
+**3. order-service는 이제 H2가 아니라 MariaDB다.** 컨테이너가 안 떠 있으면 부팅부터 실패. 테이블 DDL은 `kafka-practice/mariadb-ddl.sql`.
+
+### (F) 더 깊게 — 학습 문서
+
+| 문서 | 내용 |
+|---|---|
+| [`kafka-practice/README.md`](kafka-practice/README.md) | 컨테이너 실행 · CLI 빠른 참조 |
+| [`ABOUT_KAFKA/01_kafka_개념.md`](kafka-practice/ABOUT_KAFKA/01_kafka_개념.md) | Topic / Partition / Consumer Group / KRaft |
+| [`ABOUT_KAFKA/02_docker_compose_설정해설.md`](kafka-practice/ABOUT_KAFKA/02_docker_compose_설정해설.md) | 리스너 2개를 두는 이유 등 compose 한 줄씩 |
+| [`ABOUT_KAFKA/03_kafka_connect_실습.md`](kafka-practice/ABOUT_KAFKA/03_kafka_connect_실습.md) | Source / Sink 커넥터 등록 실습 |
+| [`ABOUT_KAFKA/04_test_with_spring.md`](kafka-practice/ABOUT_KAFKA/04_test_with_spring.md) | order-service → Sink 연동 명령 |
+
+---
+
 ## 주의사항 — Config ⚠️ (반드시 읽을 것)
 
 이 프로젝트를 다시 띄울 때 **가장 자주 깨지는 지점이 Config 설정**이다. 아래 세 가지를 반드시 확인할 것.
 
-### ① Config Server의 경로는 **로컬 PC 절대경로**에 의존한다
+### [1] Config Server의 경로는 **로컬 PC 절대경로**에 의존한다
 
 `config-service/src/main/resources/application.yaml`의 `search-locations`는 native 모드에서 **내 로컬 PC 폴더**를 직접 읽는다.
 
@@ -361,7 +492,7 @@ spring:
 - **프로젝트를 다른 경로/PC로 옮기면 이 경로부터 깨진다.** `${user.home}` 기준 상대 위치가 맞는지 항상 확인.
 - native 모드는 폴더를 못 찾아도 **에러 없이 빈 설정을 반환**하는 경우가 있어, `token.secret`이 안 넘어와 JWT가 조용히 깨질 수 있다. (원인 찾기 어려움)
 
-### ② native 모드는 **파일 이름으로 매칭**한다
+### [2] native 모드는 **파일 이름으로 매칭**한다
 
 `native-repo/` 폴더 안 파일은 이름 규칙으로 골라 읽힌다.
 
@@ -375,7 +506,7 @@ spring:
 - 규칙: 각 서비스는 **`application.yml`(공통) + `{bootstrap의 name}.yml`(전용)** 을 받아 합친다. 겹치면 전용 파일이 이긴다.
 - 각 파일의 `token.secret` 값은 **일부러 서로 다르게** 되어 있다 (`..._application`, `..._ecommerce`, `..._user_service`). → 서비스가 실제로 **어느 파일을 받았는지 secret 값으로 역추적**하기 위한 실습 장치다.
 
-### ③ JWT 발급/검증은 **양쪽이 같은 secret**을 받아야 동작한다 ★ 가장 중요
+### [3] JWT 발급/검증은 **양쪽이 같은 secret**을 받아야 동작한다 ★ 가장 중요
 
 `token.secret`은 **공통 `application.yml`에만** 들어있다. 공통 파일은 모든 서비스가 받아가므로,
 발급하는 user-service와 검증하는 gateway가 자동으로 같은 값을 쓰게 된다.
