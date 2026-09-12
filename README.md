@@ -26,10 +26,13 @@ msa-multi-project/                     ← 루트 (부모 POM, 버전/의존성 
 │   ├── httpie/           ← Httpie 요청 export
 │   └── test.http         ← 전체 흐름 테스트용 요청 모음 (전부 :8000 으로 감)
 │
-└── kafka-practice/       ← 인프라 컨테이너(Kafka·Kafka UI·MariaDB) + 카프카 학습 문서
-    ├── docker-compose.yml
-    ├── mariadb-ddl.sql
-    └── ABOUT_KAFKA/      ← 개념 / compose 해설 / Connect 실습 정리
+├── kafka-practice/       ← 인프라 컨테이너(Kafka·Kafka UI·MariaDB) + 카프카 학습 문서
+│   ├── docker-compose.yml
+│   ├── mariadb-ddl.sql
+│   └── ABOUT_KAFKA/      ← 개념 / compose 해설 / Connect 실습 정리
+│
+├── zipkin/               ← Zipkin 3 + MySQL 8 (분산 추적 저장소)
+└── monitoring/           ← Prometheus + Grafana (메트릭 모니터링)
 ```
 
 > `:0` = OS가 포트를 랜덤 배정. 그래서 이 서비스들은 **포트로 부르지 않고 Eureka에 등록된 이름으로만** 찾는다. 이게 MSA의 핵심 감각.
@@ -514,6 +517,100 @@ logging:
 
 > 현재 적용 범위: **user-service, order-service**. gateway·catalog-service 는 아직 미적용이라
 > 전체 흐름이 아니라 두 서비스 구간만 보인다.
+
+---
+
+## 12. Prometheus + Grafana — 메트릭 모니터링
+
+Zipkin이 **요청 하나**를 쫓는다면, Prometheus는 **전체를 숫자로** 본다.
+각 서비스가 `/actuator/prometheus` 에 현재 수치를 뱉어두면 Prometheus가 주기적으로 긁어가(scrape) 시계열로 쌓고, Grafana가 그걸 그린다.
+서비스가 보내는(push) 게 아니라 **Prometheus가 가지러 오는(pull)** 구조다.
+
+```bash
+cd monitoring && docker compose up -d   # Prometheus(:9090) + Grafana(:3000, admin/admin)
+# 타겟 상태: http://localhost:9090/targets
+```
+
+### 구성 — 의존성 + 설정
+
+| 의존성 | 역할 |
+|---|---|
+| `spring-boot-starter-actuator` | 메트릭 수집의 본체 |
+| `micrometer-registry-prometheus` | 수집한 메트릭을 **Prometheus 텍스트 포맷**으로 변환. 이게 있어야 `/actuator/prometheus` 가 생긴다 |
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - metrics
+          - prometheus      # 이 줄이 없으면 404
+```
+
+적용 범위는 **gateway, user-service, order-service** 세 개. `@Timed` 를 붙이면 그 메서드만 따로 집계된다.
+
+```java
+@GetMapping("/health-check")
+@Timed(value = "users.status", longTask = true)   // longTask = 아직 끝나지 않은 호출의 경과 시간
+public String status() { ... }
+```
+
+### 왜 게이트웨이(:8000)를 거쳐 긁나
+
+비즈니스 서비스는 `server.port: 0`(랜덤)이라 **Prometheus가 적어둘 고정 주소가 없다.**
+그래서 포트가 고정된 게이트웨이를 경유한다. 게이트웨이의 actuator 전용 라우트가 이걸 위한 것.
+
+```yaml
+# monitoring/prometheus.yml
+scrape_configs:
+  - job_name: user-service
+    metrics_path: /user-service/actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+```
+
+### 라우트 순서 ★ (여기서 제일 많이 막힌다)
+
+게이트웨이 라우트는 **선언 순서대로 검사하고 첫 매치에서 끝난다.** "경로가 더 구체적인 쪽 우선" 같은 규칙은 없다.
+그래서 actuator 라우트는 반드시 catch-all **위**에 둬야 한다.
+
+```yaml
+- id: user-service-actuator                 # 구체적인 것이 위
+  predicates:
+    - Path=/user-service/actuator/**
+    - Method=GET,POST
+  filters:
+    - RewritePath=/user-service/(?<segment>.*), /$\{segment}
+- id: user-service                          # catch-all 은 맨 아래
+  predicates:
+    - Path=/user-service/**
+  filters:
+    - RewritePath=/user-service/(?<segment>.*), /$\{segment}
+    - AuthorizationHeaderFilter             # 위아래가 바뀌면 actuator 도 이 필터를 탄다
+```
+
+### 자주 밟는 지뢰 ⚠️
+
+- **`micrometer-registry-prometheus` 없이 `exposure.include: prometheus` 만 넣으면 404.** 엔드포인트를 만드는 건 레지스트리다.
+- **actuator 라우트가 catch-all 아래에 있으면** user-service는 토큰이 없다고 **401**, order-service는 경로 변환이 안 돼서 **404**. 증상이 달라서 헷갈린다.
+- **order-service의 catch-all 에는 `RewritePath` 가 없다.** `OrderController` 가 `@RequestMapping("/order-service")` 라서 접두어째 받아야 하기 때문. 반면 actuator 는 서비스 안에서 `/actuator/**` 라 접두어를 벗겨야 한다. 같은 서비스인데 기준 경로가 다르다는 게 핵심.
+- **라우트 `id` 는 겹치지 않게.** 로그의 `Route matched: ...` 와 `spring_cloud_gateway_requests` 의 `routeId` 라벨이 구분되지 않는다.
+- 컨테이너에서 호스트를 부르는 주소는 `host.docker.internal`. compose 에 `extra_hosts: host-gateway` 를 넣어둬서 리눅스에서도 동작한다.
+
+> 인스턴스를 2개 이상 띄우면 **메트릭이 섞인다.** 게이트웨이가 스크레이프 요청까지 로드밸런싱해서
+> 매번 다른 인스턴스가 응답하기 때문. 다중 인스턴스 실습에 들어가면 `eureka_sd_configs` 로 바꿀 것.
+
+### Grafana
+
+Prometheus 데이터소스는 `monitoring/grafana/provisioning` 으로 자동 등록된다. 대시보드는 UI 에서 Import.
+
+| 번호 | 대시보드 |
+|---|---|
+| `4701` | JVM (Micrometer) |
+| `11378` | Spring Boot Statistics |
+
+게이트웨이 라우트별 지표는 `spring_cloud_gateway_requests_seconds_count` 로 직접 조회한다.
 
 ---
 
