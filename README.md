@@ -468,6 +468,55 @@ Sink 커넥터 등록 명령은 → [`kafka-practice/ABOUT_KAFKA/04_test_with_sp
 
 ---
 
+## 11. Zipkin — 분산 추적
+
+`gateway → user-service → order-service` 로 이어지는 **하나의 요청**이 어디서 얼마나 걸렸는지 본다.
+요청 하나가 흐르는 전 구간에 같은 `traceId` 를 매기고, 구간(서비스·호출)마다 `spanId` 를 따로 발급한다.
+이 둘을 서비스 간 호출 때 HTTP 헤더로 넘겨서 하나로 엮는 원리다.
+
+```bash
+cd zipkin && docker compose up -d   # Zipkin 3 + MySQL 8 (저장소)
+# UI: http://localhost:9411
+```
+
+### 구성 — 의존성 + 설정
+
+| 의존성 | 역할 |
+|---|---|
+| `spring-boot-starter-actuator` | **추적 자동설정이 여기 들어있다.** 없으면 `management.*` 가 통째로 무시된다 |
+| `micrometer-tracing-bridge-brave` | trace/span 생성 및 전파 |
+| `zipkin-reporter-brave` | span 을 Zipkin 으로 전송 |
+| `feign-micrometer` | Feign 구간 추적 (user-service 만) |
+
+```yaml
+management:
+  tracing:
+    sampling:
+      probability: 1.0                                  # 실습 100%, 운영은 0.1 정도
+#    propagation:                                       # trace id 를 주고받을 헤더 형식
+#      consume: B3                                      #   기본 W3C(traceparent) / B3 는 X-B3-*
+#      produce: B3                                      #   바꿀 거면 gateway 포함 전 서비스 동일하게
+  zipkin:
+    tracing:
+      endpoint: http://127.0.0.1:9411/api/v2/spans
+logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
+```
+
+### 자주 밟는 지뢰 ⚠️
+
+- **`endpoint` 에 `/api/v2/spans` 까지 적어야 한다.** 빠뜨리면 에러 없이 조용히 전송만 실패한다.
+- **Feign 호출은 `feign-micrometer` 가 있어야 추적된다.** 자동 계측 대상은 RestTemplate 계열뿐이라,
+  없으면 user-service → order-service 구간이 끊겨 **trace 가 2개로 쪼개져 보인다.**
+- **`zipkin/initdb.d` 스키마는 최초 1회만 실행된다.** 고쳤으면 `rm -rf zipkin/mysql-data` 후 재기동.
+- MySQL 호스트 포트는 **3307**. `kafka-practice` 의 mariadb 가 3306 을 쓰고 있다.
+
+> 현재 적용 범위: **user-service, order-service**. gateway·catalog-service 는 아직 미적용이라
+> 전체 흐름이 아니라 두 서비스 구간만 보인다.
+
+---
+
 ## 주의사항 — Config ⚠️ (반드시 읽을 것)
 
 이 프로젝트를 다시 띄울 때 **가장 자주 깨지는 지점이 Config 설정**이다. 아래 세 가지를 반드시 확인할 것.
