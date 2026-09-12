@@ -41,7 +41,10 @@ management:
       exposure:
         include:
           - health
+          - httptrace
           - info
+          - metrics
+          - prometheus
 
   # [분산 추적] 예전 spring.sleuth.sampler.probability 자리.
   # 수집할 요청의 비율. 1.0 = 전부 수집(실습용), 운영은 0.1 정도로 낮춘다.

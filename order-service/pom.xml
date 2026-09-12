@@ -100,6 +100,11 @@
             user-service 에 넣은 feign-micrometer 는 필요 없다.
             나중에 Feign 클라이언트를 추가하면 그때 같이 넣을 것.
         -->
+
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

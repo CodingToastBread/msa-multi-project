@@ -6,6 +6,7 @@ import com.example.userservice.service.UserService;
 import com.example.userservice.vo.Greeting;
 import com.example.userservice.vo.RequestUser;
 import com.example.userservice.vo.ResponseUser;
+import io.micrometer.core.annotation.Timed;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,18 +33,23 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/health-check")
+    @Timed(value = "users.status", longTask = true)
     public String status() {
-        return String.format("It's Working in User Service" +
-                ", port(local.server.port)=" + env.getProperty("local.server.port") +
-                ", port(server.port)=" + env.getProperty("server.port") +
-                ", welcome message=" + env.getProperty("greeting.message") +
-                ", gateway ip(env)=" + env.getProperty("gateway.ip") +
-                ", token secret key=" + env.getProperty("token.secret") +
-                ", token expiration time=" + env.getProperty("token.expiration-time")
+        return String.format(
+                ("""
+                It's Working in User Service,
+                port(local.server.port)=%s,
+                port(server.port)=%s,
+                welcome message=%s,
+                gateway ip(env)=%s,
+                token secret key=%s,
+                token expiration time=%s""")
+                .formatted(env.getProperty("local.server.port"), env.getProperty("server.port"), env.getProperty("greeting.message"), env.getProperty("gateway.ip"), env.getProperty("token.secret"), env.getProperty("token.expiration-time"))
         );
     }
 
     @GetMapping("/welcome")
+    @Timed(value = "users.status", longTask = true)
     public String welcome(HttpServletRequest request) {
         log.info("user.welcome ip: {}, {}, {}, {}",
                 request.getRemoteAddr(),

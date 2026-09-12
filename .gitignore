@@ -44,3 +44,5 @@ kafka-practice/mariadb-data
 # MariaDB 드라이버만 저장소에 두고, 나머지는 받아서 채운다
 kafka-practice/connect-plugins/jdbc/*.jar
 !kafka-practice/connect-plugins/jdbc/mariadb-java-client-*.jar
+
+.mcp.json

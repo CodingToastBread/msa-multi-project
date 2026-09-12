@@ -35,6 +35,14 @@ spring:
               filters:
                 - RemoveRequestHeader=Cookie
                 - RewritePath=/user-service/(?<segment>.*), /$\{segment}
+            - id: user-service-actuator
+              uri: lb://USER-SERVICE
+              predicates:
+                - Path=/user-service/actuator/**
+                - Method=GET,POST
+              filters:
+                - RemoveRequestHeader=Cookie
+                - RewritePath=/user-service/(?<segment>.*), /$\{segment}
             - id: user-service
               uri: lb://USER-SERVICE
               predicates:
@@ -43,14 +51,14 @@ spring:
                 - RemoveRequestHeader=Cookie
                 - RewritePath=/user-service/(?<segment>.*), /$\{segment}
                 - AuthorizationHeaderFilter
-            - id: user-service
-              uri: lb://USER-SERVICE
+            - id: order-service-actuator
+              uri: lb://ORDER-SERVICE
               predicates:
-                - Path=/user-service/actuator/**
-                - Method=GET,POST
+                - Path=/order-service/actuator/**
+                - Method=GET
               filters:
                 - RemoveRequestHeader=Cookie
-                - RewritePath=/user-service/(?<segment>.*), /$\{segment}
+                - RewritePath=/order-service/(?<segment>.*), /$\{segment}
             - id: order-service
               uri: lb://ORDER-SERVICE
               predicates:
@@ -102,4 +110,7 @@ management:
           - httpexchanges
           - busrefresh
 #          - busenv
+          - info
+          - metrics
+          - prometheus
 
