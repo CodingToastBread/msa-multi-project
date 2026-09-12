@@ -590,20 +590,25 @@ scrape_configs:
     - AuthorizationHeaderFilter             # 위아래가 바뀌면 actuator 도 이 필터를 탄다
 ```
 
+순서가 뒤바뀌면 user-service는 토큰이 없다고 **401**, order-service는 경로 변환이 안 돼서 **404** 가 난다. 증상이 달라서 헷갈린다.
+
 ### 자주 밟는 지뢰 ⚠️
 
-- **`micrometer-registry-prometheus` 없이 `exposure.include: prometheus` 만 넣으면 404.** 엔드포인트를 만드는 건 레지스트리다.
-- **actuator 라우트가 catch-all 아래에 있으면** user-service는 토큰이 없다고 **401**, order-service는 경로 변환이 안 돼서 **404**. 증상이 달라서 헷갈린다.
-- **order-service의 catch-all 에는 `RewritePath` 가 없다.** `OrderController` 가 `@RequestMapping("/order-service")` 라서 접두어째 받아야 하기 때문. 반면 actuator 는 서비스 안에서 `/actuator/**` 라 접두어를 벗겨야 한다. 같은 서비스인데 기준 경로가 다르다는 게 핵심.
-- **라우트 `id` 는 겹치지 않게.** 로그의 `Route matched: ...` 와 `spring_cloud_gateway_requests` 의 `routeId` 라벨이 구분되지 않는다.
-- 컨테이너에서 호스트를 부르는 주소는 `host.docker.internal`. compose 에 `extra_hosts: host-gateway` 를 넣어둬서 리눅스에서도 동작한다.
+- **`micrometer-registry-prometheus` 없으면 `/actuator/prometheus` 가 404.** 엔드포인트를 만드는 건 레지스트리다.
+- **order-service catch-all 에만 `RewritePath` 가 없다.** `OrderController` 가 `@RequestMapping("/order-service")` 라 접두어째 받는다.
+- **라우트 `id` 중복 주의.** 로그와 `routeId` 라벨에서 어느 라우트인지 구분되지 않는다.
+- 컨테이너에서 호스트를 부르는 주소는 `host.docker.internal`.
 
 > 인스턴스를 2개 이상 띄우면 **메트릭이 섞인다.** 게이트웨이가 스크레이프 요청까지 로드밸런싱해서
 > 매번 다른 인스턴스가 응답하기 때문. 다중 인스턴스 실습에 들어가면 `eureka_sd_configs` 로 바꿀 것.
 
 ### Grafana
 
-Prometheus 데이터소스는 `monitoring/grafana/provisioning` 으로 자동 등록된다. 대시보드는 UI 에서 Import.
+데이터소스는 손으로 추가하지 않아도 된다. 그라파나는 부팅할 때
+`/etc/grafana/provisioning/datasources/*.yml` 을 읽어 거기 적힌 데이터소스를 등록하는데(프로비저닝),
+compose 가 `monitoring/grafana/provisioning` 을 그 경로에 마운트해 둔다.
+
+대시보드는 UI 에서 Import 한다.
 
 | 번호 | 대시보드 |
 |---|---|
