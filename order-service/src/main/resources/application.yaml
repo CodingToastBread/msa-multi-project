@@ -10,14 +10,15 @@ spring:
   datasource:
     # @msa-multi-project/kafka-practice/docker-compose.yml 릉 통해서 mariadb 실행
     # docker-compose.yaml 의 parent directory 에 ddl 도 있으니 참고.
-    url: jdbc:mariadb://localhost:3306/mydb
-    driver-class-name: org.mariadb.jdbc.Driver
-    username: root
-    password: test1357
-#    driver-class-name: org.h2.Driver
-#    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;
-#    username: sa
-#    password:
+#    url: jdbc:mariadb://localhost:3306/mydb
+#    driver-class-name: org.mariadb.jdbc.Driver
+#    username: root
+#    password: test1357
+    ### resilience4j test 를 위해서 임시적으로 다시 H2 사용! 카프카 관련 기능은 막아둠.
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;
+    username: sa
+    password:
 
   jpa:
     hibernate:
@@ -34,6 +35,31 @@ eureka:
 server:
   port: 0
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+
+  # [분산 추적] 예전 spring.sleuth.sampler.probability 자리.
+  # 수집할 요청의 비율. 1.0 = 전부 수집(실습용), 운영은 0.1 정도로 낮춘다.
+  tracing:
+    sampling:
+      probability: 1.0
+
+  # [분산 추적] 예전 spring.zipkin.base-url 자리.
+  # 주의: base-url 과 달리 /api/v2/spans 경로까지 전부 적어야 한다.
+  # (docker run -d -p 9411:9411 --name zipkin openzipkin/zipkin:3)
+  zipkin:
+    tracing:
+      endpoint: http://127.0.0.1:9411/api/v2/spans
+
 logging:
+  # Sleuth 가 자동으로 해주던 일. Boot 3 에서는 직접 패턴을 지정해야
+  # 로그에 [서비스명,traceId,spanId] 가 찍힌다.
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "
   level:
     com.example.orderservice: DEBUG

@@ -48,6 +48,58 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
+
+        <!--
+            [분산 추적] 강의의 Sleuth + Zipkin 조합은 Spring Boot 3 에서 못 쓴다.
+            spring-cloud-starter-sleuth 는 Spring Cloud 2021.x 를 끝으로 단종됐고,
+            그 역할이 Micrometer Tracing 으로 넘어갔다. (아티팩트 자체가 없어 빌드부터 실패)
+
+              spring-cloud-starter-sleuth  ->  micrometer-tracing-bridge-brave
+              spring-cloud-starter-zipkin  ->  zipkin-reporter-brave
+        -->
+        <!-- 추적 자동설정이 actuator 안에 들어있어서 필수 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            관측(Observation) API 본체. 추적/메트릭의 공통 토대다.
+            actuator 와 micrometer-tracing 이 어차피 전이로 끌고 오지만,
+            추적 스택이 한눈에 보이도록 명시적으로 선언한다.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-observation</artifactId>
+        </dependency>
+
+        <!-- 추적 구현체: Brave 로 trace/span 생성 및 컨텍스트 전파 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
+
+        <!--
+            Spring Web(RestTemplate 등) 구간의 Brave 계측.
+            Boot 3 는 Observation API 로도 RestTemplate 을 계측하므로 없어도 대개 동작하지만,
+            어느 구간이 추적되는지 명시적으로 드러내기 위해 선언해 둔다.
+        -->
+        <dependency>
+            <groupId>io.zipkin.brave</groupId>
+            <artifactId>brave-instrumentation-spring-web</artifactId>
+        </dependency>
+
+        <!-- 수집한 span 을 Zipkin 서버(:9411)로 전송 -->
+        <dependency>
+            <groupId>io.zipkin.reporter2</groupId>
+            <artifactId>zipkin-reporter-brave</artifactId>
+        </dependency>
+
+        <!--
+            order-service 는 다른 서비스를 호출하지 않으므로(Feign/RestTemplate 없음)
+            user-service 에 넣은 feign-micrometer 는 필요 없다.
+            나중에 Feign 클라이언트를 추가하면 그때 같이 넣을 것.
+        -->
     </dependencies>
 
     <build>

@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
+import org.springframework.cloud.client.circuitbreaker.CircuitBreaker;
+import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
@@ -26,6 +28,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static java.util.Collections.emptyList;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,6 +39,9 @@ public class UserServiceImpl implements UserService {
     private final BCryptPasswordEncoder encoder;
     private final RestTemplate restTemplate;
     private final OrderServiceClient orderServiceClient;
+
+    @SuppressWarnings("rawtypes")
+    private final CircuitBreakerFactory circuitBreakerFactory;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -83,13 +90,18 @@ public class UserServiceImpl implements UserService {
 //        List<ResponseOrder> orderList = orderListResponse.getBody();
 
         /* OpenFeign 방식 */
-        List<ResponseOrder> orderList = Collections.emptyList();
-        try {
-            orderList = orderServiceClient.getOrders(userId);
-        } catch (FeignException e) {
-            log.error("FeignException: {}", e.getMessage());
-        }
-        userDto.setOrders(orderList);
+//        List<ResponseOrder> ordersList = Collections.emptyList();
+//        try {
+//            ordersList = orderServiceClient.getOrders(userId);
+//        } catch (FeignException e) {
+//            log.error("FeignException: {}", e.getMessage());
+//        }
+
+        CircuitBreaker circuitbreaker = circuitBreakerFactory.create("circuitbreaker");
+        List<ResponseOrder> ordersList = circuitbreaker.run(() -> orderServiceClient.getOrders(userId),
+                throwable -> emptyList());
+
+        userDto.setOrders(ordersList);
 
         return userDto;
     }
