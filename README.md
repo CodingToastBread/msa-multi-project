@@ -26,13 +26,17 @@ msa-multi-project/                     ← 루트 (부모 POM, 버전/의존성 
 │   ├── httpie/           ← Httpie 요청 export
 │   └── test.http         ← 전체 흐름 테스트용 요청 모음 (전부 :8000 으로 감)
 │
-├── kafka-practice/       ← 인프라 컨테이너(Kafka·Kafka UI·MariaDB) + 카프카 학습 문서
-│   ├── docker-compose.yml
-│   ├── mariadb-ddl.sql
-│   └── ABOUT_KAFKA/      ← 개념 / compose 해설 / Connect 실습 정리
+├── kafka-practice/       ← 카프카 학습 문서 (README, ABOUT_KAFKA/)
 │
-├── zipkin/               ← Zipkin 3 + MySQL 8 (분산 추적 저장소)
-└── monitoring/           ← Prometheus + Grafana (메트릭 모니터링)
+└── docker/               ← 모든 컨테이너를 여기서 관리 (7장 참고)
+    ├── docker-compose.yml    인프라 9개 + Spring 서비스 8개(profile: app)
+    ├── HOW_TO_DOCKER_COMPOSE.md  ← 실행 방법 상세 문서
+    ├── .env                  실행 모드 고정용 (COMPOSE_PROFILES, PROMETHEUS_MODE)
+    ├── kafka/connect-plugins/    Kafka Connect JDBC 커넥터 + MariaDB 드라이버
+    ├── mariadb/mariadb-ddl.sql   MariaDB 테이블 DDL
+    ├── zipkin/initdb.d/          Zipkin MySQL 스키마
+    ├── monitoring/               prometheus/{local,container}/, grafana/provisioning/
+    └── data/                     bind mount 데이터 (kafka, mariadb, zipkin-mysql) — gitignore
 ```
 
 > `:0` = OS가 포트를 랜덤 배정. 그래서 이 서비스들은 **포트로 부르지 않고 Eureka에 등록된 이름으로만** 찾는다. 이게 MSA의 핵심 감각.
@@ -281,10 +285,10 @@ Maven 래퍼를 리포 루트에서 사용한다.
 ./mvnw -pl order-service test                  # 모듈 테스트
 ```
 
-중앙 런처가 없으므로 **터미널을 여러 개 열고 순서대로** 띄운다. 순서를 어기면 등록 실패로 무한 재시도한다.
+Spring 서비스를 로컬(IDE / `spring-boot:run`)에서 띄울 때는 **터미널을 여러 개 열고 순서대로** 띄운다. 순서를 어기면 등록 실패로 무한 재시도한다.
 
 ```
-[1] RabbitMQ 컨테이너            podman run ... rabbitmq:4.2.7-management
+[1] 인프라 컨테이너              cd docker && docker compose up -d   (RabbitMQ, Kafka, Zipkin, ...)
 [2] service-discovery (Eureka)   ./mvnw -pl service-discovery spring-boot:run
 [3] config-service               ← 다른 서비스가 부팅 시 여기 설정을 받아가므로 먼저
 [4] gateway
@@ -292,6 +296,23 @@ Maven 래퍼를 리포 루트에서 사용한다.
 ```
 
 전체 흐름 테스트는 `01_reference/test.http` (모든 요청이 게이트웨이 `:8000`으로 감).
+
+### 컨테이너로 실행 (docker compose) → [`docker/HOW_TO_DOCKER_COMPOSE.md`](docker/HOW_TO_DOCKER_COMPOSE.md)
+
+모든 컨테이너(인프라 9개 + Spring 서비스 8개)는 **`docker/docker-compose.yml` 한 파일**에 있다.
+Spring 서비스에만 `profiles: [app]` 이 붙어 있어서, 명령 하나로 "무엇까지 띄울지" 를 고른다. (명령은 `docker/` 에서)
+
+| 하고 싶은 것 | 명령 |
+|---|---|
+| IDE 로 실습 (인프라만 컨테이너) | `docker compose up -d` → 위 순서대로 IDE 에서 실행 |
+| 전체를 컨테이너로 | `./mvnw clean package -DskipTests` 후 `PROMETHEUS_MODE=container docker compose --profile app up -d --build` |
+| 필요한 인프라만 | `docker compose up -d kafka kafka-ui` |
+| 서비스 하나 다시 빌드 | `docker compose up -d --build user-service` |
+| 전부 내리기 | `docker compose --profile app down` |
+
+yml 의 주소는 `${RABBITMQ_HOST:127.0.0.1}` 처럼 **환경변수 + 로컬 기본값**으로 되어 있어서, 같은 설정으로 IDE 실행과 컨테이너 실행이 둘 다 된다.
+
+profiles 개념, 시나리오별 실행(모드 전환 · `.env` 고정), 접속 주소, 데이터 초기화, 트러블슈팅은 **[HOW_TO_DOCKER_COMPOSE.md](docker/HOW_TO_DOCKER_COMPOSE.md)** 에 정리했다.
 
 ---
 
@@ -420,7 +441,7 @@ Sink 커넥터는 "이 값이 어느 컬럼의 무슨 타입인지"를 모른다
 
 ```
 order-service/messagequeue/
-  ├── KafkaProducerConfig.java   ← 브로커 주소(localhost:9092) + String 직렬화
+  ├── KafkaProducerConfig.java   ← 브로커 주소(spring.kafka.bootstrap-servers) + String 직렬화
   ├── KafkaProducer.java         ← [1] OrderDto 그대로 → example-catalog-topic
   └── OrderProducer.java         ← [2] schema+payload 로 감싸서 → orders
 
@@ -432,8 +453,7 @@ catalog-service/messagequeue/
 ### (D) 띄우는 순서
 
 ```bash
-cd kafka-practice && docker compose up -d     # kafka + kafka-ui + mariadb
-# Sink([2])까지 쓸 거면 docker-compose.yml 의 connect 블록 주석 해제 후 재기동
+cd docker && docker compose up -d kafka kafka-ui mariadb connect   # 인프라 전체는 docker compose up -d
 ```
 
 | 확인할 것 | 주소 |
@@ -457,13 +477,13 @@ Sink 커넥터 등록 명령은 → [`kafka-practice/ABOUT_KAFKA/04_test_with_sp
 
 **2. 브로커 주소를 헷갈린다** — 호스트(Spring Boot)에서는 `localhost:9092`, 컨테이너끼리는 `kafka:19092`.
 
-**3. order-service는 이제 H2가 아니라 MariaDB다.** 컨테이너가 안 떠 있으면 부팅부터 실패. 테이블 DDL은 `kafka-practice/mariadb-ddl.sql`.
+**3. order-service는 이제 H2가 아니라 MariaDB다.** 컨테이너가 안 떠 있으면 부팅부터 실패. 테이블 DDL은 `docker/mariadb/mariadb-ddl.sql`.
 
 ### (F) 더 깊게 — 학습 문서
 
 | 문서 | 내용 |
 |---|---|
-| [`kafka-practice/README.md`](kafka-practice/README.md) | 컨테이너 실행 · CLI 빠른 참조 |
+| [`kafka-practice/README.md`](kafka-practice/README.md) | CLI 빠른 참조 (compose 는 `docker/` 로 통합됨) |
 | [`ABOUT_KAFKA/01_kafka_개념.md`](kafka-practice/ABOUT_KAFKA/01_kafka_개념.md) | Topic / Partition / Consumer Group / KRaft |
 | [`ABOUT_KAFKA/02_docker_compose_설정해설.md`](kafka-practice/ABOUT_KAFKA/02_docker_compose_설정해설.md) | 리스너 2개를 두는 이유 등 compose 한 줄씩 |
 | [`ABOUT_KAFKA/03_kafka_connect_실습.md`](kafka-practice/ABOUT_KAFKA/03_kafka_connect_실습.md) | Source / Sink 커넥터 등록 실습 |
@@ -478,7 +498,7 @@ Sink 커넥터 등록 명령은 → [`kafka-practice/ABOUT_KAFKA/04_test_with_sp
 이 둘을 서비스 간 호출 때 HTTP 헤더로 넘겨서 하나로 엮는 원리다.
 
 ```bash
-cd zipkin && docker compose up -d   # Zipkin 3 + MySQL 8 (저장소)
+cd docker && docker compose up -d zipkin   # Zipkin 3 + MySQL 8 (zipkin-mysql 은 depends_on 으로 같이 뜬다)
 # UI: http://localhost:9411
 ```
 
@@ -512,8 +532,8 @@ logging:
 - **`endpoint` 에 `/api/v2/spans` 까지 적어야 한다.** 빠뜨리면 에러 없이 조용히 전송만 실패한다.
 - **Feign 호출은 `feign-micrometer` 가 있어야 추적된다.** 자동 계측 대상은 RestTemplate 계열뿐이라,
   없으면 user-service → order-service 구간이 끊겨 **trace 가 2개로 쪼개져 보인다.**
-- **`zipkin/initdb.d` 스키마는 최초 1회만 실행된다.** 고쳤으면 `rm -rf zipkin/mysql-data` 후 재기동.
-- MySQL 호스트 포트는 **3307**. `kafka-practice` 의 mariadb 가 3306 을 쓰고 있다.
+- **`docker/zipkin/initdb.d` 스키마는 최초 1회만 실행된다.** 고쳤으면 `rm -rf docker/data/zipkin-mysql` 후 재기동.
+- MySQL 호스트 포트는 **3307**. mariadb 가 3306 을 쓰고 있다.
 
 > 현재 적용 범위: **user-service, order-service**. gateway·catalog-service 는 아직 미적용이라
 > 전체 흐름이 아니라 두 서비스 구간만 보인다.
@@ -527,9 +547,23 @@ Zipkin이 **요청 하나**를 쫓는다면, Prometheus는 **전체를 숫자로
 서비스가 보내는(push) 게 아니라 **Prometheus가 가지러 오는(pull)** 구조다.
 
 ```bash
-cd monitoring && docker compose up -d   # Prometheus(:9090) + Grafana(:3000, admin/admin)
+cd docker && docker compose up -d prometheus grafana   # Prometheus(:9090) + Grafana(:3000, admin/admin)
 # 타겟 상태: http://localhost:9090/targets
 ```
+
+Prometheus 설정 파일은 **gateway 가 어디서 떠 있느냐**에 따라 둘로 나뉜다. `PROMETHEUS_MODE` 로 고른다.
+
+| 모드 | 파일 | 타겟 주소 | 언제 |
+|---|---|---|---|
+| `local` (기본) | `docker/monitoring/prometheus/local/prometheus.yml` | `host.docker.internal:8000` | gateway 를 호스트(IDE)에서 실행 |
+| `container` | `docker/monitoring/prometheus/container/prometheus.yml` | `gateway:8000` | gateway 도 컨테이너 |
+
+```bash
+cd docker && docker compose up -d prometheus                            # local
+cd docker && PROMETHEUS_MODE=container docker compose up -d prometheus  # container (또는 .env 에서 고정)
+```
+
+> 모드를 바꿨으면 prometheus 컨테이너를 다시 만들어야 반영된다 (`up -d` 가 설정 변경을 감지해 재생성한다).
 
 ### 구성 — 의존성 + 설정
 
@@ -562,7 +596,7 @@ public String status() { ... }
 그래서 포트가 고정된 게이트웨이를 경유한다. 게이트웨이의 actuator 전용 라우트가 이걸 위한 것.
 
 ```yaml
-# monitoring/prometheus.yml
+# docker/monitoring/prometheus/local/prometheus.yml
 scrape_configs:
   - job_name: user-service
     metrics_path: /user-service/actuator/prometheus
@@ -606,7 +640,7 @@ scrape_configs:
 
 데이터소스는 손으로 추가하지 않아도 된다. 그라파나는 부팅할 때
 `/etc/grafana/provisioning/datasources/*.yml` 을 읽어 거기 적힌 데이터소스를 등록하는데(프로비저닝),
-compose 가 `monitoring/grafana/provisioning` 을 그 경로에 마운트해 둔다.
+compose 가 `docker/monitoring/grafana/provisioning` 을 그 경로에 마운트해 둔다.
 
 대시보드는 UI 에서 Import 한다.
 
@@ -669,13 +703,43 @@ spring:
 
 ## 주의사항 — IP 허용목록 ⚠️
 
-`user-service/.../security/WebSecurity.java`의 `hasIpAddress(...)` 목록에 **현재 내 PC의 LAN IP**가 들어있어야 한다. 없으면 gateway → user-service 요청이 전부 **401**.
+`user-service/.../security/WebSecurity.java` 는 **gateway 가 보낸 요청만** 받도록 출발지 IP 를 검사한다. (`hasIpAddress`)
+허용 IP 는 코드에 박지 않고 설정 `gateway.allowed-ips` 로 받는다.
 
-```java
-"hasIpAddress('127.0.0.1') or hasIpAddress('::1') or hasIpAddress('192.168.219.141')"
-                                                                  └─ 여기를 내 IP로 수정
+| 실행 방식 | 허용 IP | 그 IP 가 되도록 하는 설정 |
+|---|---|---|
+| IDE (로컬) | `127.0.0.1`, `::1` (기본값) | user-service 가 Eureka 에 `hostname: localhost` 로 등록 → gateway 가 `localhost` 로 호출 |
+| 컨테이너 | `172.18.0.100` (`GATEWAY_ALLOWED_IPS`) | compose 가 gateway 컨테이너에 고정 IP 부여 (`ipv4_address`) |
+
+```yaml
+# user-service/src/main/resources/application.yaml
+eureka:
+  instance:
+    hostname: localhost                                   # IDE 에서만 의미 있음 (컨테이너는 prefer-ip-address=true 라 무시)
+gateway:
+  allowed-ips: "${GATEWAY_ALLOWED_IPS:127.0.0.1,::1}"
 ```
 
-- **왜 127.0.0.1로는 안 되나**: Eureka는 loopback이 아닌 IP(LAN IP)로 등록되고, gateway는 그 주소로 접속한다. 그래서 user-service가 보는 소스 IP는 `127.0.0.1`이 아니라 LAN IP다. (`127.0.0.1`은 user-service를 **직접** 호출할 때만 해당)
-- 공유기/와이파이가 바뀌면 IP도 바뀌므로 **다시 띄울 때마다 확인**. 현재 IP는 `ifconfig | grep "inet "`, 실제 등록값은 `http://localhost:8761`에서 확인.
+### 왜 예전에는 LAN IP 를 넣어야 했나
 
+`hasIpAddress` 가 보는 건 **요청을 보낸 쪽 IP**(`request.getRemoteAddr()`) 이고, 그 값은 **gateway 가 어느 주소로 접속했느냐**로 정해진다.
+
+```
+[hostname 미지정] Eureka 에 LAN IP(172.30.1.18) 로 등록 → gateway 가 172.30.1.18 로 접속 → 출발지 172.30.1.18
+[hostname=localhost] Eureka 에 localhost 로 등록       → gateway 가 localhost 로 접속   → 출발지 127.0.0.1
+```
+
+같은 PC 안의 통신이라도 LAN 주소로 걸면 LAN 주소가, localhost 로 걸면 `127.0.0.1` 이 출발지가 된다.
+예전에는 LAN IP 로 등록됐기 때문에 코드에 `192.168.x.x` 를 박아야 했고, **와이파이가 바뀔 때마다 깨졌다.**
+지금은 localhost 로 등록하므로 네트워크가 바뀌어도 그대로다. (실측: 수정 전 LAN IP 출발지 → 401, 수정 후 `127.0.0.1` 출발지 → 201)
+
+### 자주 밟는 지뢰
+
+- **거부되면 403 이 아니라 401 이 난다.** `httpBasic` 이 켜져 있어서 "인증하라" 로 응답한다. JWT 오류(401)와 구분이 안 되므로,
+  **JWT 필터가 없는 회원가입(`POST /user-service/users`)이 401 이면 IP 문제**다.
+- **컨테이너에서 네트워크 대역(`172.18.0.0/16`) 전체를 허용하면 안 된다.** gateway 를 우회해 다른 컨테이너(prometheus 등)가 직접 호출해도 통과한다.
+  (실측: 대역 허용 시 prometheus 컨테이너 → user-service `/users` 200, gateway IP 만 허용 시 401)
+- **gateway 고정 IP 와 `GATEWAY_ALLOWED_IPS` 는 같은 값이어야 한다.** 둘 다 `docker/docker-compose.yml` 에 있다.
+- **`localhost` 등록은 gateway 와 user-service 가 같은 PC 에 있을 때만 맞다.** 다른 PC 의 gateway 가 받으면 자기 자신을 찾아간다.
+- `/actuator/**`, `/h2-console/**` 은 IP 검사 없이 열려 있다. (Prometheus 스크레이프용)
+- native-repo 의 `gateway.ip` 는 health-check 화면에 **표시만** 될 뿐 검사에는 쓰이지 않는다.

@@ -19,7 +19,22 @@ Use the Maven wrapper from the repo root.
 ./mvnw -pl order-service test -Dtest=ClassName#methodName           # single test method
 ```
 
-There is no central launcher. To bring the system up, start in this order in separate terminals: **RabbitMQ (container) → service-discovery → config-service → gateway → (user/catalog/order/first/second)-service**. A service started before Eureka will keep retrying registration; a service started before config-service may boot with missing/empty config (see Config below). RabbitMQ must be **4.2.7** (`podman run -d -p 5672:5672 -p 15672:15672 --name rabbitmq rabbitmq:4.2.7-management`); 4.3.x causes compatibility errors.
+For local (IDE / `spring-boot:run`) runs, first start the infra containers (`cd docker && docker compose up -d`), then start in this order in separate terminals: **service-discovery → config-service → gateway → (user/catalog/order/first/second)-service**. A service started before Eureka will keep retrying registration; a service started before config-service may boot with missing/empty config (see Config below). RabbitMQ must be **4.2.7**; 4.3.x causes compatibility errors.
+
+### Containers (whole system at once)
+
+Full run guide (profiles, scenarios, mode switching, troubleshooting): `docker/HOW_TO_DOCKER_COMPOSE.md` — keep it in sync when changing `docker/docker-compose.yml`.
+
+```bash
+./mvnw clean package -DskipTests                 # Dockerfiles only COPY target/*-0.0.1.jar — rebuild jars first
+cd docker
+docker compose up -d                                                   # infra only (for local Spring runs)
+PROMETHEUS_MODE=container docker compose --profile app up -d --build  # infra + all Spring services
+docker compose up -d --build user-service                              # one service (naming it activates its profile)
+docker compose --profile app down                                      # without --profile app, stop/down only touch infra
+```
+
+**All containers live in the single `docker/docker-compose.yml`** (infra: rabbitmq, kafka, kafka-ui, connect, mariadb, zipkin, zipkin-mysql, prometheus, grafana; Spring services carry `profiles: [app]`). Supporting files sit next to it (`docker/kafka/connect-plugins`, `docker/mariadb/`, `docker/zipkin/initdb.d`, `docker/monitoring/`), bind-mount data goes to gitignored `docker/data/`, and `docker/.env` can pin the mode (`COMPOSE_PROFILES=app`, `PROMETHEUS_MODE=container`, commented out by default). Compose creates the `ecommerce-network` (subnet `172.18.0.0/16`); start order is enforced with `depends_on` + healthchecks. `kafka-practice/` now holds only Kafka study docs. Service yml files keep **local defaults behind env placeholders** (`${RABBITMQ_HOST:127.0.0.1}`, `EUREKA_SERVER_URL`, `CONFIG_SERVER_URI`, `ZIPKIN_ENDPOINT`, `KAFKA_BOOTSTRAP_SERVERS`, `EUREKA_PREFER_IP_ADDRESS`, `NATIVE_REPO_LOCATION`, `ENCRYPT_KEY_STORE_LOCATION`); the compose file sets container names. Keep that pattern when adding a host/URL — never hard-code `localhost`, and inside containers Kafka is `kafka:19092` (INTERNAL listener), not 9092. Prometheus config is split into `docker/monitoring/prometheus/{local,container}/`, chosen by `PROMETHEUS_MODE` (default `local`). The gateway container gets a fixed IP `172.18.0.100` (dynamic IPs come from `ip_range 172.18.1.0/24`) and user-service receives it as `GATEWAY_ALLOWED_IPS`.
 
 `01_reference/test.http` holds runnable example requests (all hitting the gateway on `:8000`) — the canonical way to exercise the full flow.
 
@@ -47,13 +62,13 @@ Business / demo services all register with Eureka and run on **`server.port: 0`*
 
 ### Security (user-service only)
 
-- `security/WebSecurity.java` builds the `SecurityFilterChain`: CSRF disabled, `/h2-console/**` open, all other paths gated by a hard-coded **IP allow-list** (`127.0.0.1`, `::1`, and a specific LAN IP) — expect 403s when calling from an unlisted address. HTTP Basic is enabled.
+- `security/WebSecurity.java` builds the `SecurityFilterChain`: CSRF disabled, `/h2-console/**` open, all other paths gated by an **IP allow-list** read from `gateway.allowed-ips` (`${GATEWAY_ALLOWED_IPS:127.0.0.1,::1}`) so only the gateway can call it. Locally this works because user-service registers in Eureka with `eureka.instance.hostname: localhost`, so the gateway connects via loopback (without it, it registers the LAN IP and the source IP changes with the network); in containers the allowed IP is the gateway's fixed IP. A rejected request returns **401, not 403** (HTTP Basic is enabled), which looks like a JWT failure — a 401 on `POST /user-service/users` (no JWT filter) means the IP check.
 - `security/AuthenticationFilter.java` extends `UsernamePasswordAuthenticationFilter` and reads login credentials from the JSON body as `RequestLogin` (email + password). Passwords are BCrypt-encoded; `UserServiceImpl` implements `UserDetailsService`.
 - **JWT is now implemented.** On login, `successfulAuthentication` mints a JWT (`subject = userId`, HS256, signed with `token.secret`) and returns it in the response `token` header (plus `userId`). The gateway's `AuthorizationHeaderFilter` verifies that JWT on protected routes using the **same** `token.secret`. Both `token.secret` and `token.expiration-time` come from the Config Server, not local config — see Config below.
 
 ### Config Server & shared secrets (config-service)
 
-- **config-service** serves settings from local `.yml` files in `01_reference/native-repo/` (native profile). Filenames matter: a service receives `application.yml` (shared) **plus** `{name}.yml` (specific, higher priority), where `{name}` is `spring.cloud.config.name` from that service's `bootstrap.yml`. `search-locations` is a **local absolute path** (`file://${user.home}/study/msa-multi-project/01_reference/native-repo`) — moving the repo breaks it, and native mode silently returns empty config when the folder is missing.
+- **config-service** serves settings from local `.yml` files in `01_reference/native-repo/` (native profile). Filenames matter: a service receives `application.yml` (shared) **plus** `{name}.yml` (specific, higher priority), where `{name}` is `spring.cloud.config.name` from that service's `bootstrap.yml`. `search-locations` defaults to a **local absolute path** (`file://${user.home}/study/msa-multi-project/01_reference/native-repo`) — moving the repo breaks it, and native mode silently returns empty config when the folder is missing. In containers it is overridden by `NATIVE_REPO_LOCATION` pointing at the bind-mounted folder.
 - **JWT works only if issuer and verifier share the same secret.** `user-service` (issuer) and `gateway` (verifier) must both use the **same** `bootstrap` name so they load the same `{name}.yml` and thus the same `token.secret`. Currently both use `name: ecommerce` → `ecommerce.yml`. Changing one without the other silently breaks all JWT validation (401 "Invalid JWT token"). The seed secrets in `native-repo/*.yml` are deliberately distinct (`..._application` / `..._ecommerce` / `..._user_service`) so you can tell which file a service actually loaded by inspecting the secret.
 - **Spring Cloud Bus** (`spring-cloud-starter-bus-amqp` over RabbitMQ) propagates config changes: after editing a `native-repo` file, `POST /actuator/busrefresh` on any bus-connected service re-pulls config across all of them (endpoint exposed via `management.endpoints.web.exposure.include`).
 

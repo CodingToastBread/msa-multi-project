@@ -5,11 +5,14 @@ Kafka 4.0부터 ZooKeeper는 아예 제거됐습니다. 강의에 `zookeeper-ser
 
 ## 실행
 
+compose 파일은 **`docker/docker-compose.yml`** 로 통합되어 있습니다. `docker/` 폴더에서 실행합니다.
+
 ```bash
-docker compose up -d      # 기동 (kafka + 관리 UI)
-docker compose ps         # 상태 확인
-docker compose down       # 중지
-rm -rf data               # 데이터까지 완전 초기화
+cd docker
+docker compose up -d kafka kafka-ui   # 기동 (kafka + 관리 UI)
+docker compose ps                     # 상태 확인
+docker compose stop kafka kafka-ui    # 중지
+rm -rf data/kafka                     # 데이터까지 완전 초기화 (컨테이너를 내린 뒤)
 ```
 
 | 접속 대상 | 주소 |
@@ -18,7 +21,7 @@ rm -rf data               # 데이터까지 완전 초기화
 | 다른 컨테이너 → 브로커 | `kafka:19092` |
 | 관리 UI (브라우저) | http://localhost:8090 |
 
-메시지는 **`kafka-practice/data/`** 에 그대로 쌓입니다(bind mount). git에는 올라가지 않도록 `.gitignore` 처리해 두었습니다.
+메시지는 **`docker/data/kafka/`** 에 그대로 쌓입니다(bind mount). git에는 올라가지 않도록 `.gitignore` 처리해 두었습니다.
 
 > 리스너를 2개 두는 이유: 브로커가 클라이언트에게 "나한테 연결하려면 이 주소로 와"라고 알려주는 값(`advertised.listeners`)이
 > 호스트에서는 `localhost:9092`, 도커 네트워크 안에서는 `kafka:19092` 로 서로 달라야 하기 때문입니다. 입문자가 제일 많이 막히는 지점입니다.

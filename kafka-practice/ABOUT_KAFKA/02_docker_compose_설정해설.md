@@ -1,5 +1,11 @@
 # docker-compose.yml 해설 — kafka / kafka-ui
 
+> **[경로 변경 안내]** 이 문서를 쓴 뒤 compose 파일은 **`docker/docker-compose.yml` 한 곳으로 통합**됐다. (명령은 `docker/` 폴더에서 실행)
+> 아래 본문은 실습 당시 기록이라 옛 경로 그대로 둔다. 대응 관계:
+> `kafka-practice/docker-compose.yml` → `docker/docker-compose.yml` ·
+> `./data` → `docker/data/kafka` · `./mariadb-data` → `docker/data/mariadb` ·
+> `./connect-plugins` → `docker/kafka/connect-plugins` · `mariadb-ddl.sql` → `docker/mariadb/mariadb-ddl.sql`
+
 로컬 학습용 단일 노드 Kafka 4.x (KRaft) + 관리 UI 구성.
 
 ```bash
