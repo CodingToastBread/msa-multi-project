@@ -1,6 +1,7 @@
 encrypt:
 #  key: abcdefghik12345
   key-store:
-    location: file:///${user.home}/study/msa-multi-project/keystore/apiEncryptionKey.jks
+    # [컨테이너] 이미지에 COPY 한 jks 경로를 ENCRYPT_KEY_STORE_LOCATION 으로 넘긴다
+    location: ${ENCRYPT_KEY_STORE_LOCATION:file:///${user.home}/study/msa-multi-project/keystore/apiEncryptionKey.jks}
     password: 1q2w3e4r
     alias: apiEncryptionKey

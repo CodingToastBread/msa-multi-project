@@ -15,6 +15,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -33,14 +36,22 @@ public class WebSecurity {
         authenticationManagerBuilder.userDetailsService(userService).passwordEncoder(encoder);
         AuthenticationManager authenticationManager = authenticationManagerBuilder.build();
 
+        // gateway 가 보낸 요청만 받는다. 허용 IP 는 설정 gateway.allowed-ips (쉼표 구분) 로 받는다.
+        //   [IDE]     기본값 127.0.0.1, ::1 — eureka.instance.hostname=localhost 로 등록해서 gateway 가 localhost 로 호출한다
+        //   [컨테이너] GATEWAY_ALLOWED_IPS=172.18.0.100 — compose 가 gateway 컨테이너에 고정 IP 를 준다
+        // 주의: 거부되면 403 이 아니라 401 이 난다 (httpBasic 이 켜져 있어서 인증 요구로 응답). JWT 오류와 헷갈리기 쉽다.
+        String[] allowedIps = env.getProperty("gateway.allowed-ips", String[].class, new String[]{"127.0.0.1", "::1"});
+        String allowedIpExpression = Arrays.stream(allowedIps)
+                .map(String::trim)
+                .map(ip -> "hasIpAddress('" + ip + "')")
+                .collect(Collectors.joining(" or "));
+
         http.csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/**").access(
-                                new WebExpressionAuthorizationManager(
-                                        "hasIpAddress('127.0.0.1') or hasIpAddress('::1') " +
-                                                "or hasIpAddress('192.168.45.252') or hasIpAddress('::1')"))
+                                new WebExpressionAuthorizationManager(allowedIpExpression))
                         .anyRequest().authenticated())
                 .authenticationManager(authenticationManager)
                 .addFilter(getAuthentication(authenticationManager))

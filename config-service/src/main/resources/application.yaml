@@ -3,7 +3,7 @@ spring:
     name: config-service
 #  podman run -d -p 5672:5672 -p 15672:15672 --name rabbitmq rabbitmq:4.2.7-management # 주의: 4.3.x 버전을 사용하면 호환성 에러발생
   rabbitmq:
-    host: 127.0.0.1
+    host: ${RABBITMQ_HOST:127.0.0.1}
     port: 5672
     username: guest
     password: guest
@@ -13,7 +13,8 @@ spring:
     config:
       server:
         native:
-          search-locations: file://${user.home}/study/msa-multi-project/01_reference/native-repo
+          # [컨테이너] NATIVE_REPO_LOCATION 으로 볼륨 마운트한 경로를 넘긴다 (docker/docker-compose.yml 참고)
+          search-locations: ${NATIVE_REPO_LOCATION:file://${user.home}/study/msa-multi-project/01_reference/native-repo}
         git:
           uri: file://${user.home}/study/msa-multi-project/01_reference/git-local-repo
           default-label: main

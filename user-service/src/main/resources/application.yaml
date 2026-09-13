@@ -7,7 +7,7 @@ spring:
 #   spring.sleuth.sampler.probability -> management.tracing.sampling.probability
 #  podman run -d -p 5672:5672 -p 15672:15672 --name rabbitmq rabbitmq:4.2.7-management # 주의: 4.3.x 버전을 사용하면 호환성 에러발생
   rabbitmq:
-    host: 127.0.0.1
+    host: ${RABBITMQ_HOST:127.0.0.1}
     port: 5672
     username: guest
     password: guest
@@ -47,11 +47,25 @@ server:
 eureka:
   instance:
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+    # [IDE] 지정하지 않으면 PC 의 LAN IP(예: 172.30.1.18)로 등록된다 -> gateway 가 LAN IP 로 호출
+    #       -> user-service 가 보는 출발지 IP 도 LAN IP -> 와이파이가 바뀔 때마다 WebSecurity 에서 거부(401).
+    #       localhost 로 등록하면 gateway 가 localhost 로 호출 -> 출발지 IP 가 항상 127.0.0.1.
+    #       (전제: gateway 와 user-service 가 같은 PC 에서 돈다)
+    # [컨테이너] prefer-ip-address=true 면 hostname 대신 IP 로 등록되므로 이 값은 무시된다.
+    hostname: localhost
+    # [컨테이너] 컨테이너 hostname(=컨테이너 ID) 대신 IP 로 등록해야 다른 컨테이너가 찾아올 수 있다
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:false}
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://127.0.0.1:8761/eureka
+      defaultZone: ${EUREKA_SERVER_URL:http://127.0.0.1:8761/eureka}
+
+# WebSecurity 가 허용하는 gateway IP (쉼표 구분).
+# [IDE] 기본값 127.0.0.1, ::1 / [컨테이너] compose 가 gateway 고정 IP(172.18.0.100)를 넘긴다
+# 코드에 IP 를 직접 적어도 동작하지만, IP 가 바뀌어도 재빌드 없이 환경변수만 바꾸려고 설정으로 뺐다.
+gateway:
+  allowed-ips: "${GATEWAY_ALLOWED_IPS:127.0.0.1,::1}"
 
 greeting:
   message: Welcome to the Simple E-commerce (spring boot)
@@ -86,7 +100,7 @@ management:
   # (docker run -d -p 9411:9411 --name zipkin openzipkin/zipkin:3)
   zipkin:
     tracing:
-      endpoint: http://127.0.0.1:9411/api/v2/spans
+      endpoint: ${ZIPKIN_ENDPOINT:http://127.0.0.1:9411/api/v2/spans}
 
 
 logging:

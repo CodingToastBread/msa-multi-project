@@ -19,14 +19,19 @@ spring:
     generate-ddl: true
     database: h2
     defer-datasource-initialization: true
+  kafka:
+    # KafkaConsumerConfig 에서 @Value 로 읽는다. [컨테이너] 에서는 kafka:19092 (INTERNAL 리스너)
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 eureka:
   instance:
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+    # [컨테이너] 컨테이너 hostname(=컨테이너 ID) 대신 IP 로 등록해야 다른 컨테이너가 찾아올 수 있다
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:false}
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://127.0.0.1:8761/eureka
+      defaultZone: ${EUREKA_SERVER_URL:http://127.0.0.1:8761/eureka}
 
 server:
   port: 0

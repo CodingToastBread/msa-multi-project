@@ -23,14 +23,19 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+  kafka:
+    # KafkaProducerConfig 에서 @Value 로 읽는다. [컨테이너] 에서는 kafka:19092 (INTERNAL 리스너)
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 eureka:
   instance:
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+    # [컨테이너] 컨테이너 hostname(=컨테이너 ID) 대신 IP 로 등록해야 다른 컨테이너가 찾아올 수 있다
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:false}
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://127.0.0.1:8761/eureka
+      defaultZone: ${EUREKA_SERVER_URL:http://127.0.0.1:8761/eureka}
 
 server:
   port: 0
@@ -57,7 +62,7 @@ management:
   # (docker run -d -p 9411:9411 --name zipkin openzipkin/zipkin:3)
   zipkin:
     tracing:
-      endpoint: http://127.0.0.1:9411/api/v2/spans
+      endpoint: ${ZIPKIN_ENDPOINT:http://127.0.0.1:9411/api/v2/spans}
 
 logging:
   # Sleuth 가 자동으로 해주던 일. Boot 3 에서는 직접 패턴을 지정해야

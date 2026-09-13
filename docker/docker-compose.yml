@@ -1,0 +1,400 @@
+# 이 프로젝트의 모든 컨테이너 (인프라 + Spring 서비스) 를 한 파일에서 관리한다.
+# 자세한 실행 방법 / 트러블슈팅: HOW_TO_DOCKER_COMPOSE.md
+#
+# [실행 모드] (docker/ 폴더에서)
+#   docker compose up -d                            # 인프라만 -> Spring 서비스는 IDE / ./mvnw spring-boot:run 으로 실행
+#   PROMETHEUS_MODE=container docker compose --profile app up -d --build   # 인프라 + Spring 서비스 전부 (전체 컨테이너)
+#   docker compose up -d kafka kafka-ui             # 필요한 것만 골라서 (+ depends_on 대상은 자동으로 같이 뜬다)
+#   => 매번 옵션 치기 귀찮으면 .env 에서 모드를 고정할 수 있다.
+#
+# [기타]
+#   jar 빌드 (Spring 코드를 고칠 때마다, 루트에서): ./mvnw clean package -DskipTests
+#   docker compose ps                         # 상태 확인
+#   docker compose logs -f gateway            # 로그
+#   docker compose --profile app stop         # 멈추기만 (컨테이너 유지) — --profile app 을 빼면 인프라만 멈춘다
+#   docker compose --profile app down         # 컨테이너 + 네트워크 삭제 (data/ 폴더와 named volume 은 유지)
+#
+# [핵심 원리]
+#   컨테이너 안의 localhost 는 "그 컨테이너 자신" 이다. 같은 네트워크 안에서는 "컨테이너 이름 = 호스트명".
+#   그래서 각 서비스 yml 은 ${RABBITMQ_HOST:127.0.0.1} 처럼 "기본값 = 로컬 실행용" 으로 두고,
+#   여기서 환경변수로 컨테이너 이름을 넘겨 덮어쓴다. => 로컬 실행은 지금까지와 똑같이 동작한다.
+#
+# [기동 순서]
+#   rabbitmq, kafka, zipkin -> service-discovery -> config-service -> gateway -> 비즈니스 서비스
+#   depends_on + healthcheck 로 보장한다. Eureka 등록 -> gateway 가 목록을 받기까지 30초 정도는 503 이 날 수 있다.
+#
+# [데이터]
+#   data/ 아래(bind mount)에 쌓인다. git 에는 올라가지 않는다(.gitignore).
+#   완전 초기화: docker compose --profile app down && rm -rf data/<서비스>
+
+name: ecommerce
+
+# 모든 Spring 서비스 공통 설정
+x-spring-service: &spring-service
+  profiles: [app]          # --profile app 을 줄 때만 뜬다
+  restart: on-failure
+  environment: &spring-env
+    EUREKA_SERVER_URL: http://service-discovery:8761/eureka
+    # 컨테이너 hostname(=컨테이너 ID) 대신 IP 로 Eureka 에 등록 -> gateway 가 lb:// 로 찾아갈 수 있다
+    EUREKA_PREFER_IP_ADDRESS: "true"
+
+services:
+
+  # ============================================================
+  #  인프라 — 메시징 (RabbitMQ: Spring Cloud Bus)
+  # ============================================================
+
+  rabbitmq:
+    image: rabbitmq:4.2.7-management   # 주의: 4.3.x 는 호환성 에러
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # 관리 UI (guest / guest)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ============================================================
+  #  인프라 — Kafka 4.x 단일 노드 (KRaft 모드 — ZooKeeper 없음)
+  #  해설: kafka-practice/ABOUT_KAFKA/02_docker_compose_설정해설.md
+  # ============================================================
+
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: kafka
+    ports:
+      - "9092:9092"        # 호스트(= Spring Boot, CLI)에서 접속하는 포트
+    environment:
+      # --- KRaft: 브로커와 컨트롤러를 한 프로세스가 겸임 ---
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # --- 리스너 3개: 컨테이너끼리 / 호스트에서 / 컨트롤러용 ---
+      KAFKA_LISTENERS: INTERNAL://:19092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # --- 단일 노드라 복제본은 전부 1 ---
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data   # 메시지가 실제로 저장되는 곳 (아래 볼륨과 짝)
+
+      # 컨테이너에 들어가서(docker exec -it kafka bash) CLI 를 경로 없이 바로 치기 위함
+      PATH: "/opt/kafka/bin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    volumes:
+      - ./data/kafka:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # 브라우저로 토픽/메시지를 눈으로 보는 관리 UI (http://localhost:8090)
+  kafka-ui:
+    image: kafbat/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # 해설: kafka-practice/ABOUT_KAFKA/03_kafka_connect_실습.md
+  connect:
+    image: confluentinc/cp-kafka-connect:8.3.1
+    container_name: connect
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:19092
+      CONNECT_GROUP_ID: connect-cluster
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+
+      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_PLUGIN_PATH: /usr/share/java,/plugins
+    volumes:
+      - ./kafka/connect-plugins:/plugins
+    # 이미지에 박힌 HEALTHCHECK 가 curl 을 쓰는데 정작 이미지에 curl 이 없어 100% 실패한다.
+    # (컨테이너는 멀쩡히 동작 — 8083 LISTEN, REST 200) 끄지 않으면 항상 unhealthy 로 표시된다.
+    # healthcheck 항목을 아예 안 쓰면 이미지 것이 그대로 상속되므로 disable 을 명시해야 한다.
+    healthcheck:
+      disable: true
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mariadb:
+        condition: service_healthy
+
+  # ============================================================
+  #  인프라 — DB (MariaDB: order-service 의 DB, Kafka Connect JDBC Sink 가 기록)
+  #  테이블 DDL: docker/mariadb/mariadb-ddl.sql (수동 실행)
+  # ============================================================
+
+  mariadb:
+    image: mariadb:11.4
+    container_name: mariadb
+    ports:
+      - "3306:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: test1357
+      MARIADB_DATABASE: mydb
+    volumes:
+      - ./data/mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ============================================================
+  #  인프라 — 분산 추적 (Zipkin + MySQL)   UI: http://localhost:9411
+  # ============================================================
+
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    environment:
+      # 저장소를 지정하지 않으면 인메모리로 뜬다(= 재시작하면 trace 소멸).
+      # mysql 로 지정했으므로 initdb.d 의 스키마가 반드시 먼저 만들어져 있어야 한다.
+      STORAGE_TYPE: mysql
+      MYSQL_HOST: zipkin-mysql   # 아래 컨테이너 이름. 같은 네트워크 안에서 DNS 로 해석된다
+      MYSQL_TCP_PORT: 3306       # 호스트의 3307 이 아니라 컨테이너 내부 포트
+      MYSQL_DB: zipkin
+      MYSQL_USER: zipkin
+      MYSQL_PASS: zipkin
+    depends_on:
+      zipkin-mysql:
+        condition: service_healthy
+
+  zipkin-mysql:
+    image: mysql:8.0
+    container_name: zipkin-mysql
+    ports:
+      - "3307:3306"   # 호스트 3306 은 mariadb 가 쓰고 있어서 3307 로 뺐다
+    environment:
+      MYSQL_DATABASE: zipkin
+      MYSQL_USER: zipkin
+      MYSQL_PASSWORD: zipkin
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      # initdb.d 는 "DB 데이터가 비어있을 때 최초 1회만" 실행된다.
+      # 스키마를 고쳤다면 data/zipkin-mysql 를 지우고 다시 올려야 반영된다.
+      - ./zipkin/initdb.d:/docker-entrypoint-initdb.d
+      - ./data/zipkin-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uzipkin", "-pzipkin"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ============================================================
+  #  인프라 — 메트릭 모니터링 (Prometheus :9090 + Grafana :3000 admin/admin)
+  # ============================================================
+
+  prometheus:
+    image: prom/prometheus:v3.13.3
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      # PROMETHEUS_MODE 로 설정 파일을 고른다. (기본 local, .env 참고)
+      #   local     : monitoring/prometheus/local/prometheus.yml     -> gateway 를 호스트에서 실행할 때
+      #   container : monitoring/prometheus/container/prometheus.yml -> gateway 도 컨테이너일 때
+      - ./monitoring/prometheus/${PROMETHEUS_MODE:-local}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:13.0.8
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  # ============================================================
+  #  Spring Cloud 인프라 서비스 (profile: app)
+  #  Dockerfile 은 target/*.jar 를 복사만 하므로 jar 를 먼저 빌드해야 한다.
+  # ============================================================
+
+  service-discovery:
+    <<: *spring-service
+    build: ../service-discovery
+    image: ecommerce/service-discovery
+    container_name: service-discovery
+    ports:
+      - "8761:8761"     # Eureka 대시보드
+    environment: {}     # Eureka 서버 자신은 공통 환경변수(EUREKA_*)가 필요 없다
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8761/ > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  config-service:
+    <<: *spring-service
+    build: ../config-service
+    image: ecommerce/config-service
+    container_name: config-service
+    ports:
+      - "8888:8888"
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      # 호스트의 native-repo 폴더를 그대로 마운트 -> 호스트에서 yml 수정 후 busrefresh 하면 반영된다
+      NATIVE_REPO_LOCATION: file:/config-repo/
+      # Dockerfile 에서 COPY 한 키 파일 (WORKDIR 이 / 이므로 /apiEncryptionKey.jks)
+      ENCRYPT_KEY_STORE_LOCATION: file:/apiEncryptionKey.jks
+    volumes:
+      - ../01_reference/native-repo:/config-repo:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8888/actuator/health > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  gateway:
+    <<: *spring-service
+    build: ../gateway
+    image: ecommerce/gateway
+    container_name: gateway
+    ports:
+      - "8000:8000"     # 외부에 여는 유일한 비즈니스 진입점
+    networks:
+      default:
+        # 고정 IP. user-service WebSecurity 가 이 IP 만 허용한다 (user-service 의 GATEWAY_ALLOWED_IPS 와 같은 값)
+        # 고정하지 않으면 뜰 때마다 IP 가 바뀐다.
+        ipv4_address: 172.18.0.100
+    environment:
+      <<: *spring-env
+      CONFIG_SERVER_URI: http://config-service:8888
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+
+  # ============================================================
+  #  Spring 비즈니스 / 데모 서비스 (profile: app) — 포트를 열지 않는다. 반드시 gateway 경유
+  # ============================================================
+
+  user-service:
+    <<: *spring-service
+    build: ../user-service
+    image: ecommerce/user-service
+    container_name: user-service
+    environment:
+      <<: *spring-env
+      CONFIG_SERVER_URI: http://config-service:8888
+      RABBITMQ_HOST: rabbitmq
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      # WebSecurity 가 허용할 IP = gateway 고정 IP. 네트워크 전체(172.18.0.0/16)를 열면 gateway 를 우회한 직접 호출까지 통과한다
+      GATEWAY_ALLOWED_IPS: 172.18.0.100
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+      zipkin:
+        condition: service_started
+
+  order-service:
+    <<: *spring-service
+    build: ../order-service
+    image: ecommerce/order-service
+    container_name: order-service
+    environment:
+      <<: *spring-env
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      # 9092 는 호스트용(EXTERNAL, localhost 로 광고됨). 컨테이너끼리는 반드시 INTERNAL 리스너 19092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      zipkin:
+        condition: service_started
+
+  catalog-service:
+    <<: *spring-service
+    build: ../catalog-service
+    image: ecommerce/catalog-service
+    container_name: catalog-service
+    environment:
+      <<: *spring-env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  first-service:
+    <<: *spring-service
+    build: ../first-service
+    image: ecommerce/first-service
+    container_name: first-service
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+
+  second-service:
+    <<: *spring-service
+    build: ../second-service
+    image: ecommerce/second-service
+    container_name: second-service
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+# 네트워크는 compose 가 만들고 down 할 때 지운다. (별도 docker network create 불필요)
+# gateway 에 고정 IP(172.18.0.100)를 주기 위해 서브넷을 고정한다.
+# ip_range: 자동 할당은 172.18.1.x 에서만 한다 -> 다른 컨테이너가 먼저 172.18.0.100 을 가져가서 gateway 가 못 뜨는 일을 막는다.
+networks:
+  default:
+    name: ecommerce-network
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          ip_range: 172.18.1.0/24
+          gateway: 172.18.0.1
