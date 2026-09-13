@@ -8,8 +8,8 @@ spring:
         web-allow-others: true
       path: /h2-console
   datasource:
-    # @msa-multi-project/kafka-practice/docker-compose.yml 릉 통해서 mariadb 실행
-    # docker-compose.yaml 의 parent directory 에 ddl 도 있으니 참고.
+    # mariadb 실행: cd docker && docker compose up -d mariadb
+    # 테이블 DDL: docker/mariadb/mariadb-ddl.sql
 #    url: jdbc:mariadb://localhost:3306/mydb
 #    driver-class-name: org.mariadb.jdbc.Driver
 #    username: root

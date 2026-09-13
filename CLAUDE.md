@@ -40,6 +40,8 @@ docker compose --profile app down                                      # without
 
 ## Architecture
 
+Diagrams of the whole system (containers, request / config / event / observability flows, IDE vs container mode) are in `ARCHITECTURE.md` — update it when adding a service or a connection.
+
 Everything talks through three infrastructure services; business services never call each other by host/port directly.
 
 - **service-discovery** (`:8761`) — Eureka **server** (`@EnableEurekaServer`). Every other service registers here. Self-registration is disabled on the server itself.

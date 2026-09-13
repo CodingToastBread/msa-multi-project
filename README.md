@@ -3,12 +3,25 @@
 Spring Boot · Spring Cloud 기반 **MSA(마이크로서비스) 실습 프로젝트**.
 Maven 멀티모듈(reactor) 구조로, 루트 `pom.xml`(`packaging=pom`)이 8개 서비스를 자식 모듈로 묶고 공통 부모(Spring Boot 3.5.14 / Java 21 / Spring Cloud 2025.0.2)를 제공한다. Git 서브모듈이 아니라 **하나의 리포 안에 8개 서비스가 폴더로** 들어있는 구조다.
 
+## 시작하기 (IDE 로 개발할 때)
+
+인프라만 컨테이너로 띄워두고, Spring 서비스는 IDE 로 실행하면 된다.
+
+```bash
+cd docker && docker compose up -d    # 인프라 컨테이너 (RabbitMQ, Kafka, Zipkin, Prometheus ...)
+```
+
+그다음 IDE 에서 **service-discovery → config-service → gateway → 나머지** 순서로 실행한다.
+요청 테스트는 `01_reference/test.http`. 전부 컨테이너로 띄우는 방법은 [`docker/HOW_TO_DOCKER_COMPOSE.md`](docker/HOW_TO_DOCKER_COMPOSE.md).
+전체 구조를 그림으로 보려면 [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 ---
 
 ## 1. 전체 구조 (모듈 지도)
 
 ```
 msa-multi-project/                     ← 루트 (부모 POM, 버전/의존성 통합관리)
+├── ARCHITECTURE.md      ← 앱 + 인프라 전체 구조를 그림으로 (ASCII)
 ├── service-discovery/   (:8761)   Eureka Server        ── 서비스 주소록
 ├── config-service/      (:8888)   Config Server        ── 설정 중앙저장소
 ├── gateway/             (:8000)   Spring Cloud Gateway ── 유일한 대문(입구)
@@ -285,17 +298,7 @@ Maven 래퍼를 리포 루트에서 사용한다.
 ./mvnw -pl order-service test                  # 모듈 테스트
 ```
 
-Spring 서비스를 로컬(IDE / `spring-boot:run`)에서 띄울 때는 **터미널을 여러 개 열고 순서대로** 띄운다. 순서를 어기면 등록 실패로 무한 재시도한다.
-
-```
-[1] 인프라 컨테이너              cd docker && docker compose up -d   (RabbitMQ, Kafka, Zipkin, ...)
-[2] service-discovery (Eureka)   ./mvnw -pl service-discovery spring-boot:run
-[3] config-service               ← 다른 서비스가 부팅 시 여기 설정을 받아가므로 먼저
-[4] gateway
-[5] user / catalog / order / first / second  (순서 무관)
-```
-
-전체 흐름 테스트는 `01_reference/test.http` (모든 요청이 게이트웨이 `:8000`으로 감).
+IDE 로 띄우는 방법은 맨 위 [시작하기](#시작하기-ide-로-개발할-때) 참고. 서비스 실행 순서를 어기면 등록 실패로 무한 재시도한다.
 
 ### 컨테이너로 실행 (docker compose) → [`docker/HOW_TO_DOCKER_COMPOSE.md`](docker/HOW_TO_DOCKER_COMPOSE.md)
 
@@ -304,7 +307,7 @@ Spring 서비스에만 `profiles: [app]` 이 붙어 있어서, 명령 하나로 
 
 | 하고 싶은 것 | 명령 |
 |---|---|
-| IDE 로 실습 (인프라만 컨테이너) | `docker compose up -d` → 위 순서대로 IDE 에서 실행 |
+| IDE 로 실습 (인프라만 컨테이너) | `docker compose up -d` → IDE 에서 서비스 실행 |
 | 전체를 컨테이너로 | `./mvnw clean package -DskipTests` 후 `PROMETHEUS_MODE=container docker compose --profile app up -d --build` |
 | 필요한 인프라만 | `docker compose up -d kafka kafka-ui` |
 | 서비스 하나 다시 빌드 | `docker compose up -d --build user-service` |
