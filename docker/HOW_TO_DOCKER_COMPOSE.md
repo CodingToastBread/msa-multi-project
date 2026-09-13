@@ -327,12 +327,15 @@ docker exec -it kafka bash               # 컨테이너 안으로 들어가기
 
 ```bash
 docker compose --profile app down
-rm -rf data/kafka          # 토픽/메시지 전부
+rm -rf data/kafka          # 토픽/메시지 전부 + Kafka Connect 커넥터 등록 정보 (Sink 재등록 필요)
 rm -rf data/mariadb        # MariaDB 전부 (DDL 은 mariadb/mariadb-ddl.sql 로 다시 실행)
 rm -rf data/zipkin-mysql   # trace 전부 (다음 기동 때 zipkin/initdb.d 스키마가 다시 실행됨)
 ```
 
-> Spring 서비스의 H2 는 인메모리라 **컨테이너를 재시작하면 항상 비어서** 뜬다. (회원가입부터 다시)
+> user-service / catalog-service 의 H2 는 인메모리라 **재시작하면 항상 비어서** 뜬다. (회원가입부터 다시)
+> order-service 의 주문은 MariaDB(`data/mariadb`)에 남는다.
+>
+> `data/kafka` 를 지웠다면 Sink 커넥터를 다시 등록해야 주문이 MariaDB 에 저장된다. 명령은 [`ABOUT_KAFKA/04`](../kafka-practice/ABOUT_KAFKA/04_test_with_spring.md) 참고.
 
 ---
 
@@ -393,6 +396,7 @@ spring:
 | `RABBITMQ_HOST` | config, gateway, user | `127.0.0.1` | `rabbitmq` |
 | `ZIPKIN_ENDPOINT` | user, order | `http://127.0.0.1:9411/api/v2/spans` | `http://zipkin:9411/api/v2/spans` |
 | `KAFKA_BOOTSTRAP_SERVERS` | order, catalog | `localhost:9092` | `kafka:19092` |
+| `DB_URL` | order | `jdbc:mariadb://localhost:3306/mydb` | `jdbc:mariadb://mariadb:3306/mydb` |
 | `NATIVE_REPO_LOCATION` | config | `file://${user.home}/.../native-repo` | `file:/config-repo/` (볼륨 마운트) |
 | `ENCRYPT_KEY_STORE_LOCATION` | config (bootstrap) | `file:///${user.home}/.../apiEncryptionKey.jks` | `file:/apiEncryptionKey.jks` (이미지에 COPY) |
 | `GATEWAY_ALLOWED_IPS` | user (WebSecurity) | `127.0.0.1,::1` | `172.18.0.100` (gateway 고정 IP) |

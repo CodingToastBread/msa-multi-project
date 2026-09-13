@@ -56,7 +56,7 @@
 
 - 모든 컨테이너는 `docker/docker-compose.yml` 한 파일에 있다.
 - 비즈니스 서비스는 **포트를 밖에 열지 않는다.** 외부 요청은 반드시 gateway(`:8000`)를 거친다.
-- user / order / catalog 는 각자 **인메모리 H2** 를 쓴다. (재시작하면 비워짐)
+- user / catalog 는 각자 **인메모리 H2** (재시작하면 비워짐), order 는 **MariaDB** 를 쓴다.
 
 ---
 
@@ -150,15 +150,16 @@
  |               |  [3] orders         |              |
  |               |-------------------->|              |  [4] orders   +-----------+  JDBC Sink  +-----------+
  +---------------+                     +--------------+-------------->|  connect  |------------>|  mariadb  |
-   ([1], [3] send code is                     ^                       |  :8083    |             |  orders   |
-    commented out for now)                    |                       +-----------+             +-----------+
+                                              ^                       |  :8083    |             |  orders   |
+                                              |                       +-----------+             +-----------+
                                        +--------------+
                                        |  kafka-ui    |
                                        |  :8090       |
                                        +--------------+
 ```
 
-- 현재 order-service 는 **H2** 로 동작하고, Kafka 발행 코드는 Resilience4j 실습 때문에 **주석 처리**되어 있다.
+- order-service 는 주문을 DB 에 직접 넣지 않는다. `orders` 토픽으로 발행하면 Sink Connector 가 MariaDB 에 저장하고, 조회만 JPA 로 MariaDB 에서 읽는다.
+- Sink Connector(`my-order-sink-connect`) 등록 정보는 Kafka 에 저장된다. `docker/data/kafka` 를 지우면 다시 등록해야 한다. ([04 문서](kafka-practice/ABOUT_KAFKA/04_test_with_spring.md))
 - 호스트(IDE)에서는 `localhost:9092`, 컨테이너끼리는 `kafka:19092` 로 붙는다.
 
 ---

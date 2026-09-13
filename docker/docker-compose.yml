@@ -32,7 +32,10 @@ name: ecommerce
 # 모든 Spring 서비스 공통 설정
 x-spring-service: &spring-service
   profiles: [app]          # --profile app 을 줄 때만 뜬다
-  restart: on-failure
+  # on-failure 로 두면 안 된다: JVM 은 stop 시 exit 143 으로 끝나서 "실패" 로 취급되고,
+  # Docker Desktop 이 재시작될 때 멈춰둔 Spring 컨테이너가 전부 다시 켜진다 (IDE 실행과 포트 충돌).
+  # unless-stopped 는 직접 멈춘 컨테이너를 Docker 재시작 후에도 켜지 않는다.
+  restart: unless-stopped
   environment: &spring-env
     EUREKA_SERVER_URL: http://service-discovery:8761/eureka
     # 컨테이너 hostname(=컨테이너 ID) 대신 IP 로 Eureka 에 등록 -> gateway 가 lb:// 로 찾아갈 수 있다
@@ -343,10 +346,13 @@ services:
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
       # 9092 는 호스트용(EXTERNAL, localhost 로 광고됨). 컨테이너끼리는 반드시 INTERNAL 리스너 19092
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      DB_URL: jdbc:mariadb://mariadb:3306/mydb
     depends_on:
       service-discovery:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      mariadb:
         condition: service_healthy
       zipkin:
         condition: service_started

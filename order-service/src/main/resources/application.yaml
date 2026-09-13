@@ -10,15 +10,16 @@ spring:
   datasource:
     # mariadb 실행: cd docker && docker compose up -d mariadb
     # 테이블 DDL: docker/mariadb/mariadb-ddl.sql
-#    url: jdbc:mariadb://localhost:3306/mydb
-#    driver-class-name: org.mariadb.jdbc.Driver
-#    username: root
-#    password: test1357
-    ### resilience4j test 를 위해서 임시적으로 다시 H2 사용! 카프카 관련 기능은 막아둠.
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;
-    username: sa
-    password:
+    # [컨테이너] DB_URL=jdbc:mariadb://mariadb:3306/mydb
+    url: ${DB_URL:jdbc:mariadb://localhost:3306/mydb}
+    driver-class-name: org.mariadb.jdbc.Driver
+    username: root
+    password: test1357
+    ### (이전) resilience4j test 때 잠시 쓰던 H2 설정. 비교용으로 남겨둔다.
+#    driver-class-name: org.h2.Driver
+#    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;
+#    username: sa
+#    password:
 
   jpa:
     hibernate:

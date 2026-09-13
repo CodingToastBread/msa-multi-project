@@ -47,21 +47,21 @@ OrderController {
         OrderDto orderDto = modelMapper.map(orderDetails, OrderDto.class);
         orderDto.setUserId(userId);
 
-        /* jpa
-          -> resilience4j test 를 위해서 카프카 관련 일시적 주석 해제 */
-        OrderDto createDto = ordersService.createOrder(orderDto);
-        ResponseOrder responseOrder = modelMapper.map(createDto, ResponseOrder.class);
+        /* jpa — DB 에 직접 insert 하던 방식 (지금은 Kafka -> Sink Connector 가 저장하므로 주석 처리)
+           resilience4j 테스트 때 잠시 이 경로를 썼었다. 비교용으로 남겨둔다. */
+//        OrderDto createDto = ordersService.createOrder(orderDto);
+//        ResponseOrder responseOrder = modelMapper.map(createDto, ResponseOrder.class);
 
-        /* kafka
-          -> resilience4j test 를 위해서 카프카 관련 일시적 주석 처리 */
-//        orderDto.setOrderId(UUID.randomUUID().toString());
-//        orderDto.setTotalPrice(orderDetails.getQty() * orderDetails.getUnitPrice());
+        /* kafka */
+        orderDto.setOrderId(UUID.randomUUID().toString());
+        orderDto.setTotalPrice(orderDetails.getQty() * orderDetails.getUnitPrice());
 
         /* send this order to kafka
-           -> resilience4j test 를 위해서 카프카 관련 일시적 주석 처 리*/
-//        kafkaProducer.send("example-catalog-topic", orderDto);
-//        orderProducer.send("orders", orderDto);
-//        ResponseOrder responseOrder = modelMapper.map(orderDto, ResponseOrder.class);
+           example-catalog-topic -> catalog-service 재고 차감
+           orders                -> JDBC Sink Connector 가 MariaDB orders 테이블에 저장 */
+        kafkaProducer.send("example-catalog-topic", orderDto);
+        orderProducer.send("orders", orderDto);
+        ResponseOrder responseOrder = modelMapper.map(orderDto, ResponseOrder.class);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(responseOrder);
     }
